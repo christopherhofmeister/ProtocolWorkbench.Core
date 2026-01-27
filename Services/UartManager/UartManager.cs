@@ -1,11 +1,13 @@
 ﻿using FTD2XX_NET;
+using ProtocolWorkbench.Core.Services.UartDevice;
+using ProtocolWorkBench.Core;
 using ProtocolWorkBench.Core.Models;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
-namespace ProtocolWorkBench.Core
+namespace ProtocolWorkbench.Core.Services.UartManager
 {
     public class UartManager : IUartManager
     {
@@ -61,7 +63,7 @@ namespace ProtocolWorkBench.Core
 #if MOCK
                     SerialPorts.Add(new MockUartDevice { PortName = com.ComPort, FtdiDeviceType = com.FtdiDeviceType, FtdiSerialNumber = com.SerialNumber });
 #else
-                    SerialPorts.Add(new UartDevice { PortName = com.ComPort, FtdiDeviceType = com.FtdiDeviceType, FtdiSerialNumber = com.SerialNumber });
+                    SerialPorts.Add(new UartDevice.UartDevice { PortName = com.ComPort, FtdiDeviceType = com.FtdiDeviceType, FtdiSerialNumber = com.SerialNumber });
 #endif
                 }
             }

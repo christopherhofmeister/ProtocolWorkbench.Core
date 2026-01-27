@@ -1,9 +1,10 @@
-﻿using ProtocolWorkBench.Core.Models;
+﻿using ProtocolWorkbench.Core.Services.UartDevice;
+using ProtocolWorkBench.Core.Models;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace ProtocolWorkBench.Core
+namespace ProtocolWorkbench.Core.Services.UartManager
 {
     public interface IUartManager
     {

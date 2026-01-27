@@ -1,4 +1,5 @@
-﻿using ProtocolWorkBench.Core.Protocols.Binary.Models;
+﻿using ProtocolWorkbench.Core.Services.UartDevice;
+using ProtocolWorkBench.Core.Protocols.Binary.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;

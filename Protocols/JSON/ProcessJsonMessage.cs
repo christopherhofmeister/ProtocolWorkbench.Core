@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ProtocolWorkbench.Core.Services.UartDevice;
+using System;
 using static ProtocolWorkBench.Core.Models.MessageTypes;
 
 namespace ProtocolWorkBench.Core.Protocols

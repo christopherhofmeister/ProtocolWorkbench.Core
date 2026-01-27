@@ -1,4 +1,5 @@
 ﻿using FTD2XX_NET;
+using ProtocolWorkBench.Core;
 using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols;
 using ProtocolWorkBench.Core.Protocols.Binary;
@@ -14,7 +15,7 @@ using System.Threading;
 using static ProtocolWorkBench.Core.Models.ProtocolDefinitions;
 using static ProtocolWorkBench.Core.Models.UartFlowControl;
 
-namespace ProtocolWorkBench.Core
+namespace ProtocolWorkbench.Core.Services.UartDevice
 {
     public class UartDevice : SerialPort, IUartDevice
     {

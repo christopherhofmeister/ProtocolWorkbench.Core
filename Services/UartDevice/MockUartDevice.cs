@@ -11,8 +11,9 @@ using System.Collections.Generic;
 using System.Timers;
 using static ProtocolWorkBench.Core.Models.ProtocolDefinitions;
 using static ProtocolWorkBench.Core.Models.UartFlowControl;
+using ProtocolWorkBench.Core;
 
-namespace ProtocolWorkBench.Core
+namespace ProtocolWorkbench.Core.Services.UartDevice
 {
     public class MockUartDevice : IUartDevice
     {

@@ -1,4 +1,5 @@
 ﻿using FTD2XX_NET;
+using ProtocolWorkBench.Core;
 using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols.SMPCONSOLE;
 using System;
@@ -8,7 +9,7 @@ using static ProtocolWorkBench.Core.Models.ProtocolDefinitions;
 using static ProtocolWorkBench.Core.Models.UartFlowControl;
 using static ProtocolWorkBench.Core.Protocols.SMPCONSOLE.SMPoCMessageService;
 
-namespace ProtocolWorkBench.Core
+namespace ProtocolWorkbench.Core.Services.UartDevice
 {
     public interface IUartDevice
     {
