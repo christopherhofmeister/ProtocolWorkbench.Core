@@ -5,19 +5,15 @@ using ProtocolWorkBench.Core.Protocols;
 using ProtocolWorkBench.Core.Protocols.Binary;
 using ProtocolWorkBench.Core.Protocols.CBOR;
 using ProtocolWorkBench.Core.Protocols.SMPCONSOLE;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO.Ports;
-using System.Linq;
-using System.Threading;
 using static ProtocolWorkBench.Core.Models.ProtocolDefinitions;
 using static ProtocolWorkBench.Core.Models.UartFlowControl;
 
 namespace ProtocolWorkbench.Core.Services.UartDevice
 {
-    public class UartDevice : SerialPort, IUartDevice
+    public class UartDevice : System.IO.Ports.SerialPort, IUartDevice
     {
         private Thread threadProcessIncomingSerialData;
         private bool processIncomingSerialData = false;
@@ -363,7 +359,7 @@ namespace ProtocolWorkbench.Core.Services.UartDevice
             /* 1 / 230400 * 10 bits * 5 bytes = 0.2mS */
 
             decimal timePerBitSeconds = 1m / baudRate * 10m;
-            decimal timeNoBytesSeconds = timePerBitSeconds * (decimal)SERIAL_READ_NUM_MISSED_BYTES;
+            decimal timeNoBytesSeconds = timePerBitSeconds * SERIAL_READ_NUM_MISSED_BYTES;
             decimal timeNoBytesMs = Math.Round(timeNoBytesSeconds * 1000);
             /* windows system timer is 15mS, so can't go below that anyway */
             if (timeNoBytesMs < 15)
