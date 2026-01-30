@@ -1,12 +1,10 @@
 ﻿using Newtonsoft.Json;
 using ProtocolWorkBench.Core.Models.JsonRpc;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using static ProtocolWorkBench.Core.Models.MessageTypes;
 using ProtocolWorkBench.Core.Protocols.Binary.Models;
 using ProtocolWorkBench.Core.Protocols.SMP.Models;
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using static ProtocolWorkBench.Core.Models.MessageTypes;
 
 namespace ProtocolWorkBench.Core
 {
@@ -18,7 +16,7 @@ namespace ProtocolWorkBench.Core
 
         private ConcurrentQueue<JsonRpcRequest> cqRequestMessages = new ConcurrentQueue<JsonRpcRequest>();
 
-        private ConcurrentQueue<BinaryProtocolB> cqBinaryBMessages = new ConcurrentQueue<BinaryProtocolB>();
+        private ConcurrentQueue<BinaryProtocol> cqBinaryBMessages = new ConcurrentQueue<BinaryProtocol>();
 
         private ConcurrentQueue<SmpMessage> cqSmpMessages = new ConcurrentQueue<SmpMessage>();
 
@@ -88,7 +86,7 @@ namespace ProtocolWorkBench.Core
                 msgType = MessageType.Notification;
             }
 
-            if ((jsonMsg.ToLower().Contains("id")) && ( (jsonMsg.ToLower().Contains("result")) || (jsonMsg.ToLower().Contains("r")) ))
+            if ((jsonMsg.ToLower().Contains("id")) && ((jsonMsg.ToLower().Contains("result")) || (jsonMsg.ToLower().Contains("r"))))
             {
                 msgType = MessageType.Response;
             }
@@ -101,12 +99,12 @@ namespace ProtocolWorkBench.Core
             return msgType;
         }
 
-        public void AddMessageToQueue(MessageType messageType, BinaryProtocolB binaryMessage)
+        public void AddMessageToQueue(MessageType messageType, BinaryProtocol binaryMessage)
         {
             switch (messageType)
             {
                 case MessageType.BinaryB:
-                    AddBinaryB(binaryMessage);
+                    AddBinary(binaryMessage);
                     break;
             }
         }
@@ -149,7 +147,7 @@ namespace ProtocolWorkBench.Core
             return (foundMessage, rpcMsg);
         }
 
-        public (bool, JsonRpcResponse) GetResponse (int id)
+        public (bool, JsonRpcResponse) GetResponse(int id)
         {
             bool foundMessage = false;
             JsonRpcResponse rpcMsg = new JsonRpcResponse();
@@ -295,16 +293,16 @@ namespace ProtocolWorkBench.Core
             OnRequestMsgEvent();
         }
 
-        private void AddBinaryB(BinaryProtocolB binBMsg)
+        private void AddBinary(BinaryProtocol binBMsg)
         {
             cqBinaryBMessages.Enqueue(binBMsg);
             OnBinaryBMsgEvent();
         }
 
-        public (bool, BinaryProtocolB) GetBinaryBFromQueue()
+        public (bool, BinaryProtocol) GetBinaryFromQueue()
         {
             bool foundMessage = false;
-            BinaryProtocolB msg = new BinaryProtocolB();
+            BinaryProtocol msg = new BinaryProtocol();
 
             if (cqBinaryBMessages.Count > 0)
             {

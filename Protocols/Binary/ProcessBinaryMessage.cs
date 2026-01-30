@@ -1,10 +1,5 @@
 ﻿using ProtocolWorkbench.Core.Services.UartDevice;
 using ProtocolWorkBench.Core.Protocols.Binary.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ProtocolWorkBench.Core.Protocols.Binary
 {
@@ -12,20 +7,26 @@ namespace ProtocolWorkBench.Core.Protocols.Binary
     {
         public const byte SOF = 1;
         public const byte EOF = 4;
+        public const byte MinMessageLength = 13;
 
-        private UartDevice UartService;
+        private UartDevice _uartService;
 
-        private ReceivedMessageService ReceivedMessageService;
+        private ReceivedMessageService _receivedMessageService;
 
         public ProcessBinaryMessage(UartDevice uartService, ReceivedMessageService receivedMessageService)
         {
-            UartService = uartService;
-            ReceivedMessageService = receivedMessageService;
+            _uartService = uartService;
+            _receivedMessageService = receivedMessageService;
         }
 
         public void EnableProcessing()
         {
-            UartService.RxMsgQueuedEvent += UartService_RxMsgQueuedEvent;
+            _uartService.RxMsgQueuedEvent += UartService_RxMsgQueuedEvent;
+        }
+
+        public void DisableProcessing()
+        {
+            _uartService.RxMsgQueuedEvent -= UartService_RxMsgQueuedEvent;
         }
 
         private void UartService_RxMsgQueuedEvent(object sender, EventArgs e)
@@ -35,45 +36,41 @@ namespace ProtocolWorkBench.Core.Protocols.Binary
 
         private void ProcessReceivedMessage()
         {
-            var rxMessage = UartService.DequeueRxMessage();
+            var rxMessage = _uartService.DequeueRxMessage();
+            var msg = rxMessage.Item1.FullMessage;
 
-            BinaryProtocolB binaryProtocolB = new BinaryProtocolB();
+            if (msg == null || msg.Count < 13) return;
+            if (msg[0] != SOF || msg[^1] != EOF) return;
 
-            binaryProtocolB.StartOfFrame = rxMessage.Item1.FullMessage[0];
-            binaryProtocolB.Length.Lb = rxMessage.Item1.FullMessage[1];
-            binaryProtocolB.Length.Hb = rxMessage.Item1.FullMessage[2];
-            binaryProtocolB.MesssageType = rxMessage.Item1.FullMessage[3];
-            
-            /* SOF = 1
-             * LengthLsb = 10
-             * LengthMsb = 0
-             * MessageType = 11
-             * Payload = 7 7 7 
-             * CRCLSB = 2
-             * CRCMSB = 3
-             * EOF = 4
-            /* 1, 10, 0, 11, 7, 7, 7, 2, 3, 4 */
-
-            int length = rxMessage.Item1.FullMessage.Count;
-            for (int i = 4; i < length - 3; i++ )
+            var binaryProtocol = new BinaryProtocol
             {
-                binaryProtocolB.Payload.Add(rxMessage.Item1.FullMessage[i]);
-            }
-            
-            binaryProtocolB.CRC.Lb = rxMessage.Item1.FullMessage[length - 3];
-            binaryProtocolB.CRC.Hb = rxMessage.Item1.FullMessage[length - 2];
-            binaryProtocolB.EndOfFrame = rxMessage.Item1.FullMessage[length - 1];
+                StartOfFrame = msg[0],
+                EndOfFrame = msg[^1],
+            };
 
-            List<byte> msgNoCRC = rxMessage.Item1.FullMessage;
-            msgNoCRC.RemoveRange(msgNoCRC.Count - 3, 3);
+            binaryProtocol.Length.Lb = msg[1];
+            binaryProtocol.Length.Hb = msg[2];
+            binaryProtocol.MesssageType.Lb = msg[3];
+            binaryProtocol.MesssageType.Hb = msg[4];
 
-            if ((SOF == binaryProtocolB.StartOfFrame) && (EOF == binaryProtocolB.EndOfFrame))
-            {
-                if (true == CRCService.MessageCRCCheck(msgNoCRC, binaryProtocolB.CRC.U16Value))
-                {
-                    ReceivedMessageService.AddMessageToQueue(ProtocolWorkBench.Core.Models.MessageTypes.MessageType.BinaryB, binaryProtocolB);
-                }
-            }
+            int payloadStart = 10;
+            int crcIndex = msg.Count - 3;
+
+            if (crcIndex < payloadStart) return;
+
+            for (int i = payloadStart; i < crcIndex; i++)
+                binaryProtocol.Payload.Add(msg[i]);
+
+            binaryProtocol.CRC.Lb = msg[crcIndex];
+            binaryProtocol.CRC.Hb = msg[crcIndex + 1];
+
+            var msgNoCRC = msg.Take(msg.Count - 3).ToList(); // <-- copy
+            if (!CRCService.MessageCRCCheck(msgNoCRC, binaryProtocol.CRC.U16Value)) return;
+
+            _receivedMessageService.AddMessageToQueue(
+                ProtocolWorkBench.Core.Models.MessageTypes.MessageType.BinaryB,
+                binaryProtocol
+            );
         }
     }
 }

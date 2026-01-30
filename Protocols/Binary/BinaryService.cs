@@ -1,21 +1,19 @@
 ﻿using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols.Binary.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ProtocolWorkBench.Core.Protocols.Binary
 {
     public static class BinaryService
     {
-        public static List<Byte> CreateBinaryBMessageCRC(int id, List<MessageParameter> msgParams)
+        public const int StartOfFrame = 0xaa;
+        public const int EndOfFrame = 0x55;
+
+        public static List<Byte> CreateBinaryMessageCRC(UInt16HbLb id, List<MessageParameter> msgParams)
         {
-            BinaryProtocolB binary = new BinaryProtocolB();
-            binary.StartOfFrame = 1;
-            binary.EndOfFrame = 4;
-            binary.MesssageType = (byte)id;
+            BinaryProtocol binary = new BinaryProtocol();
+            binary.StartOfFrame = StartOfFrame;
+            binary.EndOfFrame = EndOfFrame;
+            binary.MesssageType = id;
             foreach (MessageParameter msgParam in msgParams)
             {
                 binary.Payload.AddRange(ParamaterToListByteLSBFirst(msgParam));
@@ -25,17 +23,22 @@ namespace ProtocolWorkBench.Core.Protocols.Binary
             binary.Length.Lb = length.Lb;
             binary.Length.Hb = length.Hb;
 
-            List<Byte> msg = BinaryProtocolBToListByte(binary);
+            List<Byte> msg = BinaryProtocolToListByte(binary);
 
             UInt16HbLb crc = CRCService.CalculateCRCCitt16(msg, 3);
             binary.CRC.Lb = crc.Lb;
             binary.CRC.Hb = crc.Hb;
 
-            return BinaryProtocolBToListByte(binary);
+            return BinaryProtocolToListByte(binary);
         }
 
         private static List<Byte> ParamaterToListByteLSBFirst(MessageParameter param)
         {
+            if (param is null)
+            {
+                throw new ArgumentNullException(nameof(param));
+            }
+
             List<Byte> formattedPayload = new List<byte>();
 
             if (param.CType == CTypes.BOOL)
@@ -166,18 +169,19 @@ namespace ProtocolWorkBench.Core.Protocols.Binary
             return formattedPayload;
         }
 
-        public static List<Byte> BinaryProtocolBToListByte(BinaryProtocolB binaryProtocolB)
+        public static List<Byte> BinaryProtocolToListByte(BinaryProtocol binaryProtocol)
         {
             List<Byte> value = new List<byte>();
 
-            value.Add(binaryProtocolB.StartOfFrame);
-            value.Add(binaryProtocolB.Length.Lb);
-            value.Add(binaryProtocolB.Length.Hb);
-            value.Add(binaryProtocolB.MesssageType);
-            value.AddRange(binaryProtocolB.Payload);
-            value.Add(binaryProtocolB.CRC.Lb);
-            value.Add(binaryProtocolB.CRC.Hb);
-            value.Add(binaryProtocolB.EndOfFrame);
+            value.Add(binaryProtocol.StartOfFrame);
+            value.Add(binaryProtocol.Length.Lb);
+            value.Add(binaryProtocol.Length.Hb);
+            value.Add(binaryProtocol.MesssageType.Lb);
+            value.Add(binaryProtocol.MesssageType.Hb);
+            value.AddRange(binaryProtocol.Payload);
+            value.Add(binaryProtocol.CRC.Lb);
+            value.Add(binaryProtocol.CRC.Hb);
+            value.Add(binaryProtocol.EndOfFrame);
 
             return value;
         }
