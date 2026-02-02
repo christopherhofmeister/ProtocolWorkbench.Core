@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using static ProtocolWorkBench.Core.Protocols.McuMgr.McuMgrService;
+using ProtocolWorkbench.Core.Services.CrcService;
 
 namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
 {

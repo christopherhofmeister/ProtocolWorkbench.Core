@@ -1,7 +1,8 @@
 ﻿using ProtocolWorkBench.Core.Models;
 
-namespace ProtocolWorkBench.Core.Protocols.Binary.Models
+namespace ProtocolWorkbench.Core.Protocols.Binary.Frames
 {
+
     /* Binary Protocol (11-byes of overhead + payload + auth) Little Endian
         | Field | Size (bytes) | Description |
         |------|--------------|-------------|
@@ -15,21 +16,12 @@ namespace ProtocolWorkBench.Core.Protocols.Binary.Models
         | EOF | 1 | End-of-frame marker (0x55) |
     */
 
-    public class BinaryProtocol
-    {
-        public byte StartOfFrame;
-        public UInt16HbLb Length;
-        public UInt16HbLb MesssageType;
-        public List<byte> Payload;
-        public UInt16HbLb CRC;
-        public byte EndOfFrame;
-
-        public BinaryProtocol()
-        {
-            Payload = new List<byte>();
-            Length = new UInt16HbLb();
-            MesssageType = new UInt16HbLb();
-            CRC = new UInt16HbLb();
-        }
-    }
+    public sealed record BinaryFrame(
+        UInt16HbLb PayloadLength,
+        UInt16HbLb Type,
+        byte Flags,
+        uint Seq,
+        byte[] Payload,
+        UInt16HbLb Crc16
+    );
 }

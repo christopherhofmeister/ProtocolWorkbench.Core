@@ -1,4 +1,5 @@
-﻿using ProtocolWorkBench.Core.Models;
+﻿using ProtocolWorkbench.Core.Services.CrcService;
+using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols.McuMgr;
 using ProtocolWorkBench.Core.Protocols.SMP;
 using ProtocolWorkBench.Core.Protocols.SMP.Models;

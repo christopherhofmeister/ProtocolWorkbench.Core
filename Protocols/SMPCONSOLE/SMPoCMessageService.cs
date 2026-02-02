@@ -16,6 +16,7 @@ using System.Threading.Tasks;
 using System.Timers;
 using static ProtocolWorkBench.Core.Protocols.McuMgr.McuMgrService;
 using ProtocolWorkbench.Core.Services.UartDevice;
+using ProtocolWorkbench.Core.Services.CrcService;
 
 namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
 {

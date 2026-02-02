@@ -1,4 +1,5 @@
 ﻿using PeterO.Cbor;
+using ProtocolWorkbench.Core.Services.CrcService;
 using ProtocolWorkbench.Core.Services.UartDevice;
 using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols.SMP;

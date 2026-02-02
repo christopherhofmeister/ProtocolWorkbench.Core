@@ -1,31 +1,29 @@
-﻿using System;
-
-namespace ProtocolWorkBench.Core.Models
+﻿namespace ProtocolWorkBench.Core.Models
 {
     public class UInt16HbLb
     {
         private UInt16 u16Value;
 
-        public byte Lb 
-        { 
-            get 
-            { 
-                return (byte)(u16Value & 0xff); 
+        public byte Lb
+        {
+            get
+            {
+                return (byte)(u16Value & 0xff);
             }
             set
             {
-                u16Value += value;
+                u16Value = value;
             }
         }
-        public byte Hb 
-        { 
-            get 
-            { 
-                return (byte)((u16Value & 0xff00) >> 8); 
+        public byte Hb
+        {
+            get
+            {
+                return (byte)((u16Value & 0xff00) >> 8);
             }
             set
             {
-                u16Value += (UInt16)(value << 8);
+                u16Value = (UInt16)(value << 8);
             }
         }
 

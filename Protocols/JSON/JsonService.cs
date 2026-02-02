@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using ProtocolWorkbench.Core.Services.CrcService;
 using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Models.JsonRpc;
 using System;

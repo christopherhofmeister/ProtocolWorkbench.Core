@@ -1,4 +1,5 @@
-﻿using ProtocolWorkbench.Core.Services.UartDevice;
+﻿using ProtocolWorkbench.Core.Services.CrcService;
+using ProtocolWorkbench.Core.Services.UartDevice;
 using ProtocolWorkBench.Core.Protocols.Binary.Models;
 
 namespace ProtocolWorkBench.Core.Protocols.Binary
