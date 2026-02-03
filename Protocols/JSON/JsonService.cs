@@ -3,9 +3,6 @@ using Newtonsoft.Json.Linq;
 using ProtocolWorkbench.Core.Services.CrcService;
 using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Models.JsonRpc;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace ProtocolWorkBench.Core.Protocols.JSON
 {
@@ -31,7 +28,7 @@ namespace ProtocolWorkBench.Core.Protocols.JSON
             return cleanJson.ToString();
         }
 
-        public static string CreateJsonKeyValuePairObject (MessageParameter messageParameter)
+        public static string CreateJsonKeyValuePairObject(MessageParameter messageParameter)
         {
             JObject jObj1 = new JObject();
             jObj1.Add(ConversionService.ConvertMessageParmToJParam(messageParameter));
@@ -53,7 +50,7 @@ namespace ProtocolWorkBench.Core.Protocols.JSON
                     jObj1.Add(ConversionService.ConvertMessageParmToJParam(p));
                 }
 
-               return JsonConvert.SerializeObject(jObj1);
+                return JsonConvert.SerializeObject(jObj1);
             }
 
             return returnVal;
@@ -97,41 +94,59 @@ namespace ProtocolWorkBench.Core.Protocols.JSON
             return cleanJson.ToString();
         }
 
-        public static List<Byte> CreateJsonRPCRequestMessageCRC(string methodName, int id, List<MessageParameter> msgParams)
+        public static List<byte> CreateJsonRPCRequestMessageCRC(
+            ICrcService crc,
+            string methodName,
+            int id,
+            List<MessageParameter> msgParams)
         {
             string msg = CreateJsonRPCRequestMessage(methodName, id, msgParams);
             byte[] msgBytes = ConversionService.ConvertStringToByteArray(msg);
-            List<byte> msgLByte = msgBytes.ToList();
 
-            UInt16HbLb crc = CRCService.CalculateCRCCitt16(msgBytes.ToList(), 0);
-            msgLByte.Add(crc.Lb);
-            msgLByte.Add(crc.Hb);
+            var result = msgBytes.ToList();
 
-            return msgLByte;
+            UInt16HbLb crcValue = crc.ComputeCcitt16(msgBytes);
+            result.Add(crcValue.Lb);
+            result.Add(crcValue.Hb);
+
+            return result;
         }
 
-        public static List<Byte> CreateJsonRPCNotificationMessageCRC(string methodName, List<MessageParameter> msgParams)
+        public static List<byte> CreateJsonRPCNotificationMessageCRC(
+            ICrcService crc,
+            string methodName,
+            List<MessageParameter> msgParams)
         {
+            if (crc is null) throw new ArgumentNullException(nameof(crc));
+
             string msg = CreateJsonRPCNotificationMessage(methodName, msgParams);
             byte[] msgBytes = ConversionService.ConvertStringToByteArray(msg);
-            List<byte> msgLByte = msgBytes.ToList();
 
-            UInt16HbLb crc = CRCService.CalculateCRCCitt16(msgBytes.ToList(), 0);
-            msgLByte.Add(crc.Lb);
-            msgLByte.Add(crc.Hb);
+            // Build output (message bytes + crc16 LSB/HB)
+            var msgLByte = msgBytes.ToList();
+
+            UInt16HbLb crcValue = crc.ComputeCcitt16(msgBytes);
+            msgLByte.Add(crcValue.Lb);
+            msgLByte.Add(crcValue.Hb);
 
             return msgLByte;
         }
 
-        public static List<Byte> CreateJsonRPCResponseMessageCRC(int id, List<MessageParameter> msgParams)
+        public static List<byte> CreateJsonRPCResponseMessageCRC(
+             ICrcService crc,
+             int id,
+             List<MessageParameter> msgParams)
         {
+            if (crc is null) throw new ArgumentNullException(nameof(crc));
+
             string msg = CreateJsonRPCResponseMessage(id, msgParams);
             byte[] msgBytes = ConversionService.ConvertStringToByteArray(msg);
-            List<byte> msgLByte = msgBytes.ToList();
 
-            UInt16HbLb crc = CRCService.CalculateCRCCitt16(msgBytes.ToList(), 0);
-            msgLByte.Add(crc.Lb);
-            msgLByte.Add(crc.Hb);
+            var msgLByte = msgBytes.ToList();
+
+            UInt16HbLb crcValue = crc.ComputeCcitt16(msgBytes);
+            msgLByte.Add(crcValue.Lb);
+            msgLByte.Add(crcValue.Hb);
 
             return msgLByte;
         }

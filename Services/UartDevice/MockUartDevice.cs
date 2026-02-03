@@ -1,17 +1,15 @@
 ﻿using FTD2XX_NET;
+using PeterO.Cbor;
+using ProtocolWorkBench.Core;
 using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols.McuMgr;
 using ProtocolWorkBench.Core.Protocols.MCUMGR;
 using ProtocolWorkBench.Core.Protocols.SMP.Models;
 using ProtocolWorkBench.Core.Protocols.SMPCONSOLE;
-using PeterO.Cbor;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Timers;
 using static ProtocolWorkBench.Core.Models.ProtocolDefinitions;
 using static ProtocolWorkBench.Core.Models.UartFlowControl;
-using ProtocolWorkBench.Core;
 
 namespace ProtocolWorkbench.Core.Services.UartDevice
 {
@@ -84,7 +82,7 @@ namespace ProtocolWorkbench.Core.Services.UartDevice
                 }
                 else if (smpMsg.Header.MessageId == McuMgrService.CommandIdFileSHA256)
                 {
-                    SendSMPoCMessages(sMPoCMockResponses.CreateFileSha256Response(smpMsg));
+                    //SendSMPoCMessages(sMPoCMockResponses.CreateFileSha256Response(smpMsg));
                 }
             }
             else if (smpMsg.Header.GroupId.U16Value == McuMgrService.GroupIdShell)

@@ -2,7 +2,6 @@
 using ProtocolWorkBench.Core;
 using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols;
-using ProtocolWorkBench.Core.Protocols.Binary;
 using ProtocolWorkBench.Core.Protocols.CBOR;
 using ProtocolWorkBench.Core.Protocols.SMPCONSOLE;
 using System.Collections.Concurrent;
@@ -31,7 +30,7 @@ namespace ProtocolWorkbench.Core.Services.UartDevice
         private event EventHandler TxMsgQueuedEvent;
         public ProcessJsonMessage processJsonMessage;
         public ProcessSmpMessage processSmpMessage;
-        public ProcessBinaryMessage processBinaryMessage;
+
         public string UserAttribute1 { get; set; }
         public string UserAttribute2 { get; set; }
         public string FtdiSerialNumber { get; set; }
@@ -305,16 +304,10 @@ namespace ProtocolWorkbench.Core.Services.UartDevice
             switch (protocol)
             {
                 case ProtocolTypes.JSON:
-                    processJsonMessage = new ProcessJsonMessage(this, this.ReceivedMessageService);
-                    processJsonMessage.EnableProcessing();
                     break;
                 case ProtocolTypes.SMP:
-                    processSmpMessage = new ProcessSmpMessage(this, this.ReceivedMessageService);
-                    processSmpMessage.EnableProcessing();
                     break;
                 case ProtocolTypes.BINARYB:
-                    processBinaryMessage = new ProcessBinaryMessage(this, this.ReceivedMessageService);
-                    processBinaryMessage.EnableProcessing();
                     break;
                 case ProtocolTypes.SMPCONSOLE:
                     SMPoCMessageService = new SMPoCMessageService(this);

@@ -3,10 +3,7 @@ using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols.McuMgr;
 using ProtocolWorkBench.Core.Protocols.SMP;
 using ProtocolWorkBench.Core.Protocols.SMP.Models;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -67,7 +64,7 @@ namespace ProtocolWorkBench.Core.Protocols.MCUMGR
                             base64DecodedParts.RemoveRange(base64DecodedParts.Count - 2, 2);
 
                             // calculate crc
-                            UInt16HbLb crcCalculated = CRCService.CalculateCRCCitt16(0, base64DecodedParts, 0);
+                            UInt16HbLb crcCalculated = ComputeCrc16(base64DecodedParts, offsetFromEnd: 0, initial: 0);
                             if (crcCalculated.U16Value == crc.U16Value)
                             {
                                 // get and remove header
@@ -135,7 +132,7 @@ namespace ProtocolWorkBench.Core.Protocols.MCUMGR
                             base64DecodedParts.RemoveRange(base64DecodedParts.Count - 2, 2);
 
                             // calculate crc
-                            UInt16HbLb crcCalculated = CRCService.CalculateCRCCitt16(0, base64DecodedParts, 0);
+                            UInt16HbLb crcCalculated = ComputeCrc16(base64DecodedParts, offsetFromEnd: 0, initial: 0);
                             if (crcCalculated.U16Value == crc.U16Value)
                             {
                                 cbor.AddRange(base64DecodedParts);
@@ -180,7 +177,7 @@ namespace ProtocolWorkBench.Core.Protocols.MCUMGR
             // the + 2 is the crc length
             UInt16HbLb length = new UInt16HbLb((ushort)smpMessage.Count);
             length.U16Value += 2;
-            UInt16HbLb crc = CRCService.CalculateCRCCitt16(0, smpMessage, 0);
+            UInt16HbLb crc = ComputeCrc16(smpMessage, offsetFromEnd: 0, initial: 0);
 
             List<byte> data = new List<byte>();
             data.Add(length.Hb);
@@ -370,6 +367,22 @@ namespace ProtocolWorkBench.Core.Protocols.MCUMGR
             // remove end-of-frame
             msgFragment.RemoveAt(msgFragment.Count - 1);
             return msgFragment;
+        }
+
+        private static UInt16HbLb ComputeCrc16(List<byte> data, int offsetFromEnd = 0, ushort initial = 0xFFFF)
+        {
+            if (data is null) throw new ArgumentNullException(nameof(data));
+
+            var count = data.Count - offsetFromEnd;
+            if (count <= 0)
+                return new UInt16HbLb(initial); // CRC of empty span = initial value
+
+            // Hack: instantiate per call (temporary, but clean and non-global)
+            var crc = new CrcService();
+
+            // No allocation:
+            var span = CollectionsMarshal.AsSpan(data).Slice(0, count);
+            return crc.ComputeCcitt16(span, initial);
         }
     }
 }

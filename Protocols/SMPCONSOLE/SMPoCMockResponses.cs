@@ -1,16 +1,13 @@
-﻿using ProtocolWorkBench.Core.Models;
+﻿using Newtonsoft.Json;
+using PeterO.Cbor;
+using ProtocolWorkbench.Core.Services.Sha256Service;
+using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols.CBOR;
 using ProtocolWorkBench.Core.Protocols.McuMgr;
 using ProtocolWorkBench.Core.Protocols.MCUMGR;
 using ProtocolWorkBench.Core.Protocols.SMP;
 using ProtocolWorkBench.Core.Protocols.SMP.Models;
-using Newtonsoft.Json;
-using PeterO.Cbor;
-using System;
-using System.Collections.Generic;
-using System.IO;
 using static ProtocolWorkBench.Core.Protocols.McuMgr.McuMgrService;
-using ProtocolWorkbench.Core.Services.CrcService;
 
 namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
 {
@@ -102,7 +99,7 @@ namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
             return SMPoCService.FragmentSMPOverConsoleMessage(smpocLB);
         }
 
-        public List<List<byte>> CreateFileSha256Response(SmpMessage smpMsg)
+        public List<List<byte>> CreateFileSha256Response(SmpMessage smpMsg, ISha256Service CRCService)
         {
             var obj1a = CBORObject.DecodeFromBytes(smpMsg.CBorMessage.ToArray());
             string jsonRequest = obj1a.ToJSONString();

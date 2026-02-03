@@ -1,3 +1,8 @@
+using Newtonsoft.Json;
+using PeterO.Cbor;
+using ProtocolWorkbench.Core.Services.CrcService;
+using ProtocolWorkbench.Core.Services.Sha256Service;
+using ProtocolWorkbench.Core.Services.UartDevice;
 using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols.CBOR;
 using ProtocolWorkBench.Core.Protocols.McuMgr;
@@ -5,18 +10,9 @@ using ProtocolWorkBench.Core.Protocols.McuMgr.Models;
 using ProtocolWorkBench.Core.Protocols.MCUMGR;
 using ProtocolWorkBench.Core.Protocols.SMP;
 using ProtocolWorkBench.Core.Protocols.SMP.Models;
-using Newtonsoft.Json;
-using PeterO.Cbor;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Timers;
 using static ProtocolWorkBench.Core.Protocols.McuMgr.McuMgrService;
-using ProtocolWorkbench.Core.Services.UartDevice;
-using ProtocolWorkbench.Core.Services.CrcService;
 
 namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
 {
@@ -38,6 +34,8 @@ namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
         private const int MAX_NO_EOF_COUNT = 50;
         private const int MAX_EOF_COUNT = 5;
         private const string RC = "rc";
+        private CrcService CRCService;
+        private Sha256Service _sha256Service;
 
         /// <summary>
         /// Full path of the downloaded file.
@@ -70,10 +68,12 @@ namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
 
         private SmpOCModes SmpOverConsoleMode;
 
-        public SMPoCMessageService()
+        public SMPoCMessageService(CrcService cRCService, Sha256Service sha256Service)
         {
             FileDownloadContents = new List<byte>();
             ResposeMessage = new SmpMessage();
+            CRCService = cRCService;
+            _sha256Service = sha256Service;
         }
 
         public SMPoCMessageService(IUartDevice uartDevice)
@@ -290,7 +290,7 @@ namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
             string valueType = null, string desiredAttributeResponseValue = null)
         {
             SetSmpOverConsoleReceiveMode(SmpOCModes.Normal);
-            List<byte> smpMsg = McuMgrService.McuMgrGetAttributeRequest(attrId, (byte)commandId, groupId);
+            List<byte> smpMsg = McuMgrService.McuMgrGetAttributeRequest(attrId, commandId, groupId);
 #if MOCK
             SendSmpOCOverUart(smpMsg, valueType, desiredAttributeResponseValue);
 #else
@@ -301,7 +301,7 @@ namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
         public void SetParameterRequest(byte attrId, byte commandId, UInt16HbLb groupId, object value, string cType)
         {
             SetSmpOverConsoleReceiveMode(SmpOCModes.Normal);
-            List<byte> smpMsg = McuMgrService.McuMgrSetAttributeRequest(attrId, groupId, (byte)commandId, value, cType);
+            List<byte> smpMsg = McuMgrService.McuMgrSetAttributeRequest(attrId, groupId, commandId, value, cType);
             SendSmpOCOverUart(smpMsg);
         }
 
@@ -366,7 +366,7 @@ namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
             UartDevice.RxMsgQueuedEvent += UartService_RxMsgQueuedEvent;
         }
 
-#endregion
+        #endregion
 
         #region PrivateMethods
 
@@ -559,7 +559,7 @@ namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
             var obj1a = CBORObject.DecodeFromBytes(smpMessage.CBorMessage.ToArray());
             string json = obj1a.ToJSONString();
             var result = CBORService.ProcessCborObject(obj1a);
-            string sha256 = CRCService.Sha256BytesToString(result.ByteString.ToArray());
+            string sha256 = _sha256Service.Sha256BytesToString(result.ByteString.ToArray());
             OnSha256ResponseEvent(sha256);
         }
 
@@ -820,6 +820,6 @@ namespace ProtocolWorkBench.Core.Protocols.SMPCONSOLE
             }
         }
 
-#endregion
+        #endregion
     }
 }

@@ -1,7 +1,5 @@
 ﻿using ProtocolWorkbench.Core.Services.CrcService;
 using ProtocolWorkbench.Core.Services.UartDevice;
-using System;
-using static ProtocolWorkBench.Core.Models.MessageTypes;
 
 namespace ProtocolWorkBench.Core.Protocols
 {
@@ -9,11 +7,13 @@ namespace ProtocolWorkBench.Core.Protocols
     {
         private UartDevice UartService;
         private ReceivedMessageService ReceivedMessageService;
+        private CrcService CRCService;
 
-        public ProcessJsonMessage(UartDevice uartService, ReceivedMessageService receivedMessageService)
+        public ProcessJsonMessage(UartDevice uartService, ReceivedMessageService receivedMessageService, CrcService crcService)
         {
             UartService = uartService;
             ReceivedMessageService = receivedMessageService;
+            CRCService = crcService;
         }
 
         public void EnableProcessing()
@@ -30,12 +30,14 @@ namespace ProtocolWorkBench.Core.Protocols
         {
             var rxMessage = UartService.DequeueRxMessage();
             var result = UartService.RemoveCRCFromMessage(rxMessage.Item1.FullMessage);
+            /*
             if (true == CRCService.MessageCRCCheck(result.Item2, result.Item1.U16Value))
             {
                 string jsonMsg = ConversionService.ConvertByteListToASCII(result.Item2);
                 MessageType msgType = ReceivedMessageService.DetermineMessageType(jsonMsg);
                 ReceivedMessageService.AddMessageToQueue(msgType, jsonMsg);
             }
+            */
         }
     }
 }

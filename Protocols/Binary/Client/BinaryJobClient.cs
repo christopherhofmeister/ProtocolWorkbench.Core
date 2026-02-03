@@ -65,10 +65,20 @@ public sealed class BinaryJobClient
 
         _transport.Send(frame);
 
-        var ack = await waitAck.ConfigureAwait(false);
+        BinaryFrame ack;
+        try
+        {
+            ack = await waitAck.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // ACK never arrived (timeout or external cancel) -> free jobId for reuse
+            lock (_lock) _inFlight.Remove(jobId);
+            throw;
+        }
 
         // If rejected, free jobId immediately
-        if (TryGetAckCode(ack.Payload, out var code) && code != 0)
+        if (TryGetStatus(ack.Payload, out var status) && status != 0)
         {
             lock (_lock) _inFlight.Remove(jobId);
         }
@@ -89,15 +99,29 @@ public sealed class BinaryJobClient
         }
     }
 
-    private static bool TryGetAckCode(byte[] payload, out byte ackCode)
+
+    private static bool TryGetStatus(byte[] payload, out byte status)
     {
-        if (payload is null || payload.Length < 3)
+        if (payload is null || payload.Length < 1)
         {
-            ackCode = 0;
+            status = 0;
             return false;
         }
 
-        ackCode = payload[2];
+        status = payload[0];
+        return true;
+    }
+
+    private static bool TryReadJobId(byte[] payload, out ushort jobId)
+    {
+        // status(1) + jobId(2)
+        if (payload is null || payload.Length < 3)
+        {
+            jobId = 0;
+            return false;
+        }
+
+        jobId = (ushort)(payload[1] | (payload[2] << 8)); // LE
         return true;
     }
 }
