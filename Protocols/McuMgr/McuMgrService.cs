@@ -44,7 +44,7 @@ namespace ProtocolWorkBench.Core.Protocols.McuMgr
         public const string ParamShellExeArgName = "argv";
 
         // keep command ids as bytes so that the application can override the default values if needed
-        public static byte CommandIdFileSystem {get; set;}
+        public static byte CommandIdFileSystem { get; set; }
         public static byte CommandIdGetParam { get; set; }
         public static byte CommandIdSetParam { get; set; }
         public static byte CommandIdFileStatus { get; set; }
@@ -59,7 +59,7 @@ namespace ProtocolWorkBench.Core.Protocols.McuMgr
         public const byte CommandIdFileSystemDefault = 0;
         public const byte CommandIdGetParamDefault = 1;
         public const byte CommandIdSetParamDefault = 2;
-        public const byte CommandIdFileStatusDefault =1;
+        public const byte CommandIdFileStatusDefault = 1;
         public const byte CommandIdFileSHA256Default = 2;
         public const byte CommandIdShellExeDefault = 0;
         public const byte CommandIdFactoryResetDefault = 5;
@@ -123,9 +123,9 @@ namespace ProtocolWorkBench.Core.Protocols.McuMgr
         {
             List<MessageParameter> msgParams = new List<MessageParameter>();
             MessageParameter messageParameter1 = new MessageParameter { Name = P1, Value = id.ToString(), CType = CTypes.UINT16 };
-            MessageParameter messageParameter2 = new MessageParameter { Name = P2, Value = value.ToString(), CType = valueType.ToString() };
+            //MessageParameter messageParameter2 = new MessageParameter { Name = P2, Value = value.ToString(), CType = valueType.ToString() };
             msgParams.Add(messageParameter1);
-            msgParams.Add(messageParameter2);
+            //msgParams.Add(messageParameter2);
             return msgParams;
         }
 
@@ -389,10 +389,10 @@ namespace ProtocolWorkBench.Core.Protocols.McuMgr
             List<MessageParameter> msgParams = new List<MessageParameter>();
             MessageParameter messageParameter1 = new MessageParameter { Name = "r", Value = value.ToString().Length.ToString(), CType = CTypes.UINT16 };
             MessageParameter messageParameter2 = new MessageParameter { Name = "id", Value = id.ToString(), CType = CTypes.UINT16 };
-            MessageParameter messageParameter3 = new MessageParameter { Name = "r1", Value = value.ToString(), CType = valueType.ToString() };
+            //MessageParameter messageParameter3 = new MessageParameter { Name = "r1", Value = value.ToString(), CType = valueType.ToString() };
             msgParams.Add(messageParameter1);
             msgParams.Add(messageParameter2);
-            msgParams.Add(messageParameter3);
+            //msgParams.Add(messageParameter3);
             return msgParams;
         }
 
