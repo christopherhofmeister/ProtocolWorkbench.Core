@@ -84,7 +84,7 @@ namespace ProtocolWorkBench.Core.Protocols.SMP
             if (cBORObject != null)
             {
                 UInt16 cboreLength = (UInt16)cBORObject.CalcEncodedSize();
-                smpHeader.PayloadLength.U16Value += (UInt16)cboreLength;
+                smpHeader.PayloadLength.U16Value += cboreLength;
             }
             return smpHeader;
         }
@@ -152,8 +152,6 @@ namespace ProtocolWorkBench.Core.Protocols.SMP
                 case (CTypes.BOOL):
                     outMap.Add(inMessageParameter.Name, bool.Parse(inMessageParameter.Value));
                     break;
-                case (CTypes.VOID):
-                    throw new IndexOutOfRangeException();
                 case (CTypes.STRING):
                     outMap.Add(inMessageParameter.Name, inMessageParameter.Value);
                     break;
