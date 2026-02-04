@@ -15,5 +15,17 @@ namespace ProtocolWorkbench.Core.Services.TypeHelper
                 "object" => CTypes.STRING,   // pragmatic fallback
                 _ => CTypes.STRING
             };
+
+        public static string SuggestCTypeString(string? jsonType)
+            => (jsonType ?? string.Empty).Trim().ToLowerInvariant() switch
+            {
+                "string" => "string",
+                "boolean" => "bool",
+                "integer" => "uint32_t",
+                "number" => "float",
+                "array" => "uint8_t[]",
+                "object" => "string",   // pragmatic fallback
+                _ => "string"
+            };
     }
 }
