@@ -33,7 +33,7 @@ namespace ProtocolWorkbench.Core.Services.SerialPortService
             _port.Open();
 
             _cts = new CancellationTokenSource();
-            _readerTask = Task.Run(() => ReaderLoop(_cts.Token));
+            _readerTask = Task.Run(() => ReaderLoopAsync(_cts.Token));
         }
 
         public void Close()
@@ -57,29 +57,25 @@ namespace ProtocolWorkbench.Core.Services.SerialPortService
             _port.Write(buf, 0, buf.Length);
         }
 
-        private void ReaderLoop(CancellationToken token)
+        private async Task ReaderLoopAsync(CancellationToken token)
         {
-            // single-byte event because you explicitly want Action<byte>
-            // (later we can optimize to chunk events if needed)
-            while (!token.IsCancellationRequested && _port?.IsOpen == true)
+            var port = _port;
+            if (port is null) return;
+
+            var stream = port.BaseStream;
+            var buf = new byte[256];
+
+            while (!token.IsCancellationRequested && port.IsOpen)
             {
+                int n;
                 try
                 {
-                    int b = _port.ReadByte();     // blocks until byte or timeout
-                    if (b >= 0)
-                        ByteReceived?.Invoke((byte)b);
+                    n = await stream.ReadAsync(buf, 0, buf.Length, token);
                 }
-                catch (TimeoutException)
-                {
-                    // This is your “idle gap” signal.
-                    // For Phase 1, transport just ignores it.
-                    // The *protocol framer* can decide what to do with gaps.
-                }
-                catch
-                {
-                    // port closed / error
-                    break;
-                }
+                catch { break; }
+
+                for (int i = 0; i < n; i++)
+                    ByteReceived?.Invoke(buf[i]);
             }
         }
     }
