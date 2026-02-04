@@ -1,11 +1,9 @@
 ﻿using PeterO.Cbor;
+using ProtocolWorkbench.Core.Enums;
 using ProtocolWorkBench.Core.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Globalization;
 using ProtocolWorkBench.Core.Protocols.SMP.Models;
+using System.Globalization;
+using System.Text;
 
 namespace ProtocolWorkBench.Core.Protocols.SMP
 {

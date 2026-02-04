@@ -1,14 +1,10 @@
-﻿using ProtocolWorkBench.Core.Models;
+﻿using PeterO.Cbor;
+using ProtocolWorkbench.Core.Enums;
+using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols.CBOR;
 using ProtocolWorkBench.Core.Protocols.JSON;
 using ProtocolWorkBench.Core.Protocols.MCUMGR;
 using ProtocolWorkBench.Core.Protocols.SMP;
-using PeterO.Cbor;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using static ProtocolWorkBench.Core.Models.MessageTypes;
 using static ProtocolWorkBench.Core.Protocols.SMP.SMPService;
 

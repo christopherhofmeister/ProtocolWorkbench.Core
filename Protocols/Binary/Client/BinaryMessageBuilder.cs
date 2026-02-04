@@ -1,4 +1,5 @@
-﻿using ProtocolWorkbench.Core.Services.CrcService;
+﻿using ProtocolWorkbench.Core.Enums;
+using ProtocolWorkbench.Core.Services.CrcService;
 using ProtocolWorkBench.Core.Models;
 using ProtocolWorkBench.Core.Protocols.Binary.Models;
 using System.Runtime.InteropServices;

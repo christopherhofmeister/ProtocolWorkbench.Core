@@ -1,9 +1,7 @@
-﻿using ProtocolWorkBench.Core.Models;
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using PeterO.Cbor;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using ProtocolWorkbench.Core.Enums;
+using ProtocolWorkBench.Core.Models;
 using System.Text;
 
 namespace ProtocolWorkBench.Core
