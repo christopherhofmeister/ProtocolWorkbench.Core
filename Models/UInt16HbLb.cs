@@ -2,45 +2,28 @@
 {
     public class UInt16HbLb
     {
-        private UInt16 u16Value;
+        private ushort _u16;
 
         public byte Lb
         {
-            get
-            {
-                return (byte)(u16Value & 0xff);
-            }
-            set
-            {
-                u16Value = value;
-            }
+            get => (byte)(_u16 & 0xFF);
+            set => _u16 = (ushort)((_u16 & 0xFF00) | value);
         }
+
         public byte Hb
         {
-            get
-            {
-                return (byte)((u16Value & 0xff00) >> 8);
-            }
-            set
-            {
-                u16Value = (UInt16)(value << 8);
-            }
+            get => (byte)((_u16 >> 8) & 0xFF);
+            set => _u16 = (ushort)((_u16 & 0x00FF) | (value << 8));
         }
 
-        public UInt16 U16Value
+        public ushort U16Value
         {
-            get { return u16Value; }
-            set { u16Value = value; }
+            get => _u16;
+            set => _u16 = value;
         }
 
-        public UInt16HbLb()
-        {
-            u16Value = new ushort();
-        }
-
-        public UInt16HbLb(UInt16 initValue)
-        {
-            u16Value = initValue;
-        }
+        public UInt16HbLb() : this(0) { }
+        public UInt16HbLb(ushort initValue) => _u16 = initValue;
+        public UInt16HbLb(int initValue) => _u16 = Convert.ToUInt16(initValue);
     }
 }
