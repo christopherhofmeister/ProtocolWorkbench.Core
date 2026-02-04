@@ -12,7 +12,7 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
     // sanity limit to avoid runaway allocations if LEN is corrupt
     private readonly int _maxPayloadLength;
 
-    private readonly CrcService _crc;
+    private readonly ICrcService _crc;
 
     public event Action<BinaryFrame>? FrameDecoded;
     public event Action<string>? FrameError;
@@ -37,7 +37,7 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
     private int _crcIndex;
     private readonly byte[] _crcBytes = new byte[2];
 
-    public BinaryFrameDecoder(CrcService crc, int maxPayloadLength = 4096)
+    public BinaryFrameDecoder(ICrcService crc, int maxPayloadLength = 4096)
     {
         _crc = crc ?? throw new ArgumentNullException(nameof(crc));
         _maxPayloadLength = Math.Max(0, maxPayloadLength);
