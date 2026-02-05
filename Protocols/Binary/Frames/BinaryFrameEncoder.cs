@@ -47,14 +47,12 @@ public sealed class BinaryFrameEncoder : IBinaryFrameEncoder
         header[h++] = frame.Flags;
         WriteU32LE(header, h, frame.Seq);
 
-        // CRC covers: TYPE + FLAGS + SEQ + PAYLOAD
-        // (not SOF, not LEN, not EOF)
-        int crcInputLen = header.Length - LenFieldSize + payloadLen;
+        // CRC covers: LEN + TYPE + FLAGS + SEQ + PAYLOAD
+        int crcInputLen = header.Length + payloadLen;
         byte[] crcInput = new byte[crcInputLen];
 
-        // Skip LEN when computing CRC
-        header.Slice(LenFieldSize).CopyTo(crcInput);
-        frame.Payload.CopyTo(crcInput.AsSpan(header.Length - LenFieldSize));
+        header.CopyTo(crcInput); // include LEN now
+        frame.Payload.CopyTo(crcInput.AsSpan(header.Length));
 
         UInt16HbLb crc16 = _crc.ComputeCcitt16(crcInput);
 

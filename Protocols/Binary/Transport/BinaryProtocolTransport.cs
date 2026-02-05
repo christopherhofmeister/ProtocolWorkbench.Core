@@ -12,6 +12,9 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Transport
         public event Action<BinaryFrame>? FrameReceived;
         public event Action<string>? ProtocolError;
 
+        public event Action<byte[]>? FrameTransmittedBytes; // ->
+        public event Action<byte[]>? FrameReceivedBytes;    // <-
+
         public BinaryProtocolTransport(
             ISerialTransport serial,
             IBinaryFrameDecoder decoder,
@@ -19,11 +22,29 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Transport
         {
             _serial = serial;
             _decoder = decoder;
+            _encoder = encoder;
 
             _serial.ByteReceived += OnByteReceived;
-            _decoder.FrameDecoded += f => FrameReceived?.Invoke(f);
+
+            _decoder.FrameDecoded += f =>
+            {
+                FrameReceived?.Invoke(f);
+
+                // Best-effort for now:
+                // re-encode the decoded frame so the UI can show "<- AA ... 55"
+                // (later, your decoder can expose the original raw bytes)
+                try
+                {
+                    var rxBytes = _encoder.Encode(f);
+                    FrameReceivedBytes?.Invoke(rxBytes);
+                }
+                catch
+                {
+                    // ignore logging failure
+                }
+            };
+
             _decoder.FrameError += e => ProtocolError?.Invoke(e);
-            _encoder = encoder;
         }
 
         private void OnByteReceived(byte b)
@@ -32,6 +53,10 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Transport
         public void Send(BinaryFrame frame)
         {
             var bytes = _encoder.Encode(frame);
+
+            // log BEFORE write so you still see it if write throws
+            FrameTransmittedBytes?.Invoke(bytes);
+
             _serial.Write(bytes);
         }
 
