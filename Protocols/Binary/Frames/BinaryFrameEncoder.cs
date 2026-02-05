@@ -7,6 +7,15 @@ public sealed class BinaryFrameEncoder : IBinaryFrameEncoder
 {
     public const byte SOF = 0xAA;
     public const byte EOF = 0x55;
+    private const int LenFieldSize = 2;
+    private const int TypeSize = 2;
+    private const int FlagsSize = 1;
+    private const int SeqSize = 4;
+    private const int CrcSize = 2;
+
+    // Everything after LEN, excluding payload
+    private const int FixedOverheadAfterLen =
+        TypeSize + FlagsSize + SeqSize + CrcSize + 1; // + EOF
 
     private readonly ICrcService _crc;
 
@@ -20,44 +29,60 @@ public sealed class BinaryFrameEncoder : IBinaryFrameEncoder
         if (frame.Payload is null)
             throw new ArgumentNullException(nameof(frame.Payload));
 
-        // Header (LEN..SEQ): LEN(2) + TYPE(2) + FLAGS(1) + SEQ(4) = 9 bytes
-        Span<byte> header = stackalloc byte[9];
+        int payloadLen = frame.Payload.Length;
 
-        WriteU16LE(header, 0, frame.PayloadLength.U16Value);
-        WriteU16LE(header, 2, frame.Type.U16Value);
-        header[4] = frame.Flags;
-        WriteU32LE(header, 5, frame.Seq);
+        // LEN = number of bytes AFTER LEN field
+        ushort lenAfterLen = checked((ushort)(
+            FixedOverheadAfterLen + payloadLen
+        ));
 
-        // CRC16 over: header + payload
-        var crcInputLen = header.Length + frame.Payload.Length;
+        // Header = LEN + TYPE + FLAGS + SEQ
+        Span<byte> header = stackalloc byte[
+            LenFieldSize + TypeSize + FlagsSize + SeqSize
+        ];
+
+        int h = 0;
+        WriteU16LE(header, h, lenAfterLen); h += LenFieldSize;
+        WriteU16LE(header, h, frame.Type.U16Value); h += TypeSize;
+        header[h++] = frame.Flags;
+        WriteU32LE(header, h, frame.Seq);
+
+        // CRC covers: TYPE + FLAGS + SEQ + PAYLOAD
+        // (not SOF, not LEN, not EOF)
+        int crcInputLen = header.Length - LenFieldSize + payloadLen;
         byte[] crcInput = new byte[crcInputLen];
 
-        header.CopyTo(crcInput.AsSpan(0, header.Length));
-        frame.Payload.CopyTo(crcInput.AsSpan(header.Length));
+        // Skip LEN when computing CRC
+        header.Slice(LenFieldSize).CopyTo(crcInput);
+        frame.Payload.CopyTo(crcInput.AsSpan(header.Length - LenFieldSize));
 
         UInt16HbLb crc16 = _crc.ComputeCcitt16(crcInput);
 
-        // Final: SOF + header + payload + CRC(2 LE) + EOF
-        var totalLen = 1 + header.Length + frame.Payload.Length + 2 + 1;
+        int totalLen =
+            1 +                 // SOF
+            header.Length +
+            payloadLen +
+            CrcSize +
+            1;                  // EOF
+
         byte[] buffer = new byte[totalLen];
 
-        int offset = 0;
-        buffer[offset++] = SOF;
+        int o = 0;
+        buffer[o++] = SOF;
 
-        header.CopyTo(buffer.AsSpan(offset));
-        offset += header.Length;
+        header.CopyTo(buffer.AsSpan(o));
+        o += header.Length;
 
-        if (frame.Payload.Length > 0)
+        if (payloadLen > 0)
         {
-            frame.Payload.CopyTo(buffer.AsSpan(offset));
-            offset += frame.Payload.Length;
+            frame.Payload.CopyTo(buffer.AsSpan(o));
+            o += payloadLen;
         }
 
-        // CRC little-endian on wire (LSB first)
-        buffer[offset++] = crc16.Lb;
-        buffer[offset++] = crc16.Hb;
+        buffer[o++] = crc16.Lb;
+        buffer[o++] = crc16.Hb;
 
-        buffer[offset++] = EOF;
+        buffer[o++] = EOF;
 
         return buffer;
     }
