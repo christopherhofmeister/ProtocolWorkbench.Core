@@ -148,7 +148,7 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
 
                 // CRC must match encoder. Your encoder does CRC over:
                 // TYPE + FLAGS + SEQ + PAYLOAD
-                var computed = ComputeCrc_TypeThroughPayload();
+                var computed = ComputeCrc_LenThroughPayload();
                 if (computed.U16Value != _rxCrc)
                 {
                     EmitError($"CRC mismatch. rx=0x{_rxCrc:X4}, calc=0x{computed.U16Value:X4}. Resync.");
@@ -171,33 +171,20 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
         }
     }
 
-    private UInt16HbLb ComputeCrc_TypeThroughPayload()
+    private UInt16HbLb ComputeCrc_LenThroughPayload()
     {
-        // Build bytes: TYPE(2) + FLAGS(1) + SEQ(4) + PAYLOAD(N)
-        int typeToSeqLen = TypeSize + FlagsSize + SeqSize;
-        int totalLen = typeToSeqLen + _payloadLen;
+        // Firmware computes CRC over: LEN(2) + TYPE(2) + FLAGS(1) + SEQ(4) + PAYLOAD(N)
+        // i.e. everything after SOF up through end of payload (exclude CRC and EOF).
+        int totalLen = HeaderSize + _payloadLen; // HeaderSize already includes LEN
 
         byte[] rented = ArrayPool<byte>.Shared.Rent(totalLen);
         try
         {
-            int o = 0;
+            // _header layout is exactly: LEN(2) TYPE(2) FLAGS(1) SEQ(4)
+            Buffer.BlockCopy(_header, 0, rented, 0, HeaderSize);
 
-            // TYPE (from header offset 2)
-            rented[o++] = _header[2];
-            rented[o++] = _header[3];
-
-            // FLAGS (header[4])
-            rented[o++] = _header[4];
-
-            // SEQ (header offset 5..8)
-            rented[o++] = _header[5];
-            rented[o++] = _header[6];
-            rented[o++] = _header[7];
-            rented[o++] = _header[8];
-
-            // PAYLOAD
             if (_payloadLen > 0 && _payload is not null)
-                Buffer.BlockCopy(_payload, 0, rented, o, _payloadLen);
+                Buffer.BlockCopy(_payload, 0, rented, HeaderSize, _payloadLen);
 
             return _crc.ComputeCcitt16(rented.AsSpan(0, totalLen));
         }
