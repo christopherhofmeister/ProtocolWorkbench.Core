@@ -63,10 +63,11 @@ public static class BinaryFrameDebug
         sb.AppendLine($"TYPE: 0x{typeRaw:X4}  (Cat=0x{categoryNibble:X} {categoryName}, Msg=0x{msgType:X3})");
 
         byte flagsRaw = bytes[5];
-        string flagsText = Enum.IsDefined(typeof(Flags), (Flags)flagsRaw)
-            ? ((Flags)flagsRaw).ToString()
-            : "Unknown";
-        sb.AppendLine($"FLAGS: 0x{flagsRaw:X2}  ({flagsText})");
+
+        // For [Flags] enums, Enum.IsDefined is usually NOT what you want (0x02,0x03,0x81 etc).
+        // So we print the parsed flags string regardless.
+        var flags = (Flags)flagsRaw;
+        sb.AppendLine($"FLAGS: 0x{flagsRaw:X2}  ({flags})");
 
         uint seq = ReadU32LE(bytes, 6);
         sb.AppendLine($"SEQ: {seq}");
