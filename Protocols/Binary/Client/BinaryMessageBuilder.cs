@@ -139,6 +139,44 @@ public sealed class BinaryMessageBuilder : IBinaryMessageBuilder
             formattedPayload.Add((byte)(i64 >> 48));
             formattedPayload.Add((byte)(i64 >> 56));
         }
+        else if (param.CType == CTypes.BASE64)
+        {
+            if (string.IsNullOrWhiteSpace(param.Value))
+                return formattedPayload; // empty
+
+            var s = param.Value.Trim();
+
+            // allow prefixes
+            if (s.StartsWith("base64:", StringComparison.OrdinalIgnoreCase))
+                s = s.Substring("base64:".Length).Trim();
+            else if (s.StartsWith("b64:", StringComparison.OrdinalIgnoreCase))
+                s = s.Substring("b64:".Length).Trim();
+
+            // allow data uri: data:application/octet-stream;base64,AAAA...
+            var comma = s.IndexOf(',');
+            if (comma >= 0 && s[..comma].Contains("base64", StringComparison.OrdinalIgnoreCase))
+                s = s[(comma + 1)..].Trim();
+
+            // strip whitespace/newlines (common when copying)
+            s = string.Concat(s.Where(c => !char.IsWhiteSpace(c)));
+
+            byte[] raw;
+            try
+            {
+                raw = Convert.FromBase64String(s);
+            }
+            catch (FormatException ex)
+            {
+                throw new FormatException(
+                    $"Invalid BASE64 value for '{param.Name}'. Value='{param.Value}'",
+                    ex);
+            }
+
+            // put the raw bytes on the wire.
+            // keep parity with your BYTE_ARRAY behavior: LSB-first => reverse
+            formattedPayload.AddRange(raw);
+            formattedPayload.Reverse();
+        }
         else if (param.CType == CTypes.STRING)
         {
             // NOTE: this format is weird (string of comma-separated bytes), but preserving behavior.

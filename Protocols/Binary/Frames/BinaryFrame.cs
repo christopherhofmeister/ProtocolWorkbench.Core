@@ -1,4 +1,5 @@
-﻿using ProtocolWorkBench.Core.Models;
+﻿using ProtocolWorkbench.Core.Protocols.Binary.Models;
+using ProtocolWorkBench.Core.Models;
 
 namespace ProtocolWorkbench.Core.Protocols.Binary.Frames
 {
@@ -18,7 +19,7 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Frames
 
     public sealed record BinaryFrame(
         UInt16HbLb PayloadLength,
-        UInt16HbLb Type,
+        MessageType Type,
         byte Flags,
         uint Seq,
         byte[] Payload,

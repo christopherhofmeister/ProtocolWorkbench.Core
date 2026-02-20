@@ -41,6 +41,9 @@ namespace ProtocolWorkbench.Core.Enums
         UINT32,
 
         [CTypeName("uint64_t")]
-        UINT64
+        UINT64,
+
+        [CTypeName("base64")]
+        BASE64,
     }
 }

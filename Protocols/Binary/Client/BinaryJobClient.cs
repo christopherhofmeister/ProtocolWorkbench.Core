@@ -54,7 +54,7 @@ public sealed class BinaryJobClient
 
         var frame = new BinaryFrame(
             PayloadLength: new UInt16HbLb { U16Value = (ushort)payload.Length },
-            Type: type,
+            Type: new Models.MessageType(type.U16Value),
             Flags: flags,
             Seq: seq,
             Payload: payload,

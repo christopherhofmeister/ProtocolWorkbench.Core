@@ -43,7 +43,7 @@ public sealed class BinaryFrameEncoder : IBinaryFrameEncoder
 
         int h = 0;
         WriteU16LE(header, h, lenAfterLen); h += LenFieldSize;
-        WriteU16LE(header, h, frame.Type.U16Value); h += TypeSize;
+        WriteU16LE(header, h, frame.Type.Value); h += TypeSize;
         header[h++] = frame.Flags;
         WriteU32LE(header, h, frame.Seq);
 

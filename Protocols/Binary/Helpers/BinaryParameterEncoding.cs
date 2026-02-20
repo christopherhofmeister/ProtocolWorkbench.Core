@@ -21,6 +21,16 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
                 }
 
             }
+            else if (param.CType == CTypes.BASE64)
+            {
+                if (string.IsNullOrWhiteSpace(param.Value))
+                    return formattedPayload;
+
+                var bytes = Convert.FromBase64String(param.Value.Trim());
+                formattedPayload.AddRange(bytes);
+
+                // DO NOT reverse — blobs are not little-endian numbers
+            }
             else if (param.CType == CTypes.UINT8)
             {
                 formattedPayload.Add(Convert.ToByte(param.Value));

@@ -1,5 +1,6 @@
 ﻿using ProtocolWorkbench.Core.Protocols.Binary.Frames;
 using ProtocolWorkbench.Core.Services.SerialPortService;
+using System.Diagnostics;
 
 namespace ProtocolWorkbench.Core.Protocols.Binary.Transport
 {
@@ -26,23 +27,7 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Transport
 
             _serial.ByteReceived += OnByteReceived;
 
-            _decoder.FrameDecoded += f =>
-            {
-                FrameReceived?.Invoke(f);
-
-                // Best-effort for now:
-                // re-encode the decoded frame so the UI can show "<- AA ... 55"
-                // (later, your decoder can expose the original raw bytes)
-                try
-                {
-                    var rxBytes = _encoder.Encode(f);
-                    FrameReceivedBytes?.Invoke(rxBytes);
-                }
-                catch
-                {
-                    // ignore logging failure
-                }
-            };
+            _decoder.FrameDecoded += OnFrameDecoded;
 
             _decoder.FrameError += e => ProtocolError?.Invoke(e);
         }
@@ -58,6 +43,27 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Transport
             FrameTransmittedBytes?.Invoke(bytes);
 
             _serial.Write(bytes);
+        }
+
+        public void SendRaw(byte[] bytes)
+        {
+            FrameTransmittedBytes?.Invoke(bytes);
+
+            _serial.Write(bytes);
+        }
+
+        private void OnFrameDecoded(BinaryFrame f)
+        {
+            try
+            {
+                FrameReceived?.Invoke(f);
+                var rxBytes = _encoder.Encode(f);
+                FrameReceivedBytes?.Invoke(rxBytes);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
         }
 
         public void Dispose()

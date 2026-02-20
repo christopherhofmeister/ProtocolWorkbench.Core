@@ -12,5 +12,6 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Transport
 
         void Dispose();
         void Send(BinaryFrame frame);
+        void SendRaw(byte[] bytes);
     }
 }

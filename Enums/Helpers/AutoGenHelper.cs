@@ -5,6 +5,7 @@
         // These tokens are what you store in OpenRPC JSON:  "x-autogen": "<token>"
         public const string RANDOM16 = "random16";
         public const string P256_EPHEMERAL_PUBLIC = "p256-ephemeral-public";
+        public const string SP_NONCE16_B64 = "sp-nonce16-b64";
 
         public static bool TryParse(string? token, out AutoGenKind kind)
         {
@@ -20,6 +21,10 @@
 
                 case P256_EPHEMERAL_PUBLIC:
                     kind = AutoGenKind.P256EphemeralPublicB64;
+                    return true;
+
+                case SP_NONCE16_B64:
+                    kind = AutoGenKind.SPNonce16B64;
                     return true;
 
                 default:

@@ -6,7 +6,7 @@
         WifiRadioTest = 0x1,
         BluetoothRadioTest = 0x2,
         Radio802154Test = 0x3,
-        FirmwareBootloader = 0x4,
+        Security = 0x4,
         ManufacturingTec = 0x5,
 
         Reserved6 = 0x6,

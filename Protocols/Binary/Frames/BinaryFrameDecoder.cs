@@ -1,6 +1,7 @@
 ﻿using ProtocolWorkbench.Core.Services.CrcService;
 using ProtocolWorkBench.Core.Models;
 using System.Buffers;
+using System.Diagnostics;
 
 namespace ProtocolWorkbench.Core.Protocols.Binary.Frames;
 
@@ -29,6 +30,9 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
     public event Action<BinaryFrame>? FrameDecoded;
     public event Action<string>? FrameError;
 
+    private readonly Action<string>? _trace;
+    public bool TraceEnabled { get; set; } = true;
+
     private enum State { SeekingSof, ReadingHeader, ReadingPayload, ReadingCrc, ReadingEof }
     private State _state = State.SeekingSof;
 
@@ -48,10 +52,11 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
     private int _crcIndex;
     private ushort _rxCrc;
 
-    public BinaryFrameDecoder(ICrcService crc, int maxPayloadLength = 4096)
+    public BinaryFrameDecoder(ICrcService crc, int maxPayloadLength = 4096, Action<string>? trace = null)
     {
         _crc = crc ?? throw new ArgumentNullException(nameof(crc));
         _maxPayloadLength = Math.Max(0, maxPayloadLength);
+        _trace = trace;
     }
 
     public void Reset()
@@ -75,11 +80,14 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
 
     public void PushByte(byte b)
     {
+        Trace($"Byte 0x{b:X2} state={_state} (h={_headerIndex}/{HeaderSize}, p={_payloadIndex}/{_payloadLen}, c={_crcIndex}/{CrcSize})");
+
         switch (_state)
         {
             case State.SeekingSof:
                 if (b == SOF)
                 {
+                    Trace("SOF found -> ReadingHeader");
                     _state = State.ReadingHeader;
                     _headerIndex = 0;
                 }
@@ -87,28 +95,31 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
 
             case State.ReadingHeader:
                 _header[_headerIndex++] = b;
+
                 if (_headerIndex == HeaderSize)
                 {
-                    // Header layout: LEN(2) TYPE(2) FLAGS(1) SEQ(4)
                     _lenAfterLen = ReadU16LE(_header, 0);
                     _type = ReadU16LE(_header, 2);
                     _flags = _header[4];
                     _seq = ReadU32LE(_header, 5);
 
-                    // LEN is bytes AFTER LEN field:
-                    // TYPE + FLAGS + SEQ + PAYLOAD + CRC + EOF
+                    Trace($"Header done: LEN(afterLEN)={_lenAfterLen} TYPE=0x{_type:X4} FLAGS=0x{_flags:X2} SEQ={_seq}");
+
                     if (_lenAfterLen < FixedAfterLenNoPayload)
                     {
                         EmitError($"LEN {_lenAfterLen} too small (min {FixedAfterLenNoPayload}). Resync.");
+                        Trace("LEN too small -> Reset()");
                         Reset();
                         return;
                     }
 
                     _payloadLen = _lenAfterLen - FixedAfterLenNoPayload;
+                    Trace($"Computed payloadLen={_payloadLen} (FixedAfterLenNoPayload={FixedAfterLenNoPayload})");
 
                     if (_payloadLen > _maxPayloadLength)
                     {
                         EmitError($"Payload {_payloadLen} exceeds max {_maxPayloadLength}. Resync.");
+                        Trace("Payload too large -> Reset()");
                         Reset();
                         return;
                     }
@@ -117,13 +128,16 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
                     _payloadIndex = 0;
 
                     _state = _payloadLen == 0 ? State.ReadingCrc : State.ReadingPayload;
+                    Trace($"Transition -> {_state}");
                 }
                 return;
 
             case State.ReadingPayload:
                 _payload![_payloadIndex++] = b;
+
                 if (_payloadIndex == _payloadLen)
                 {
+                    Trace("Payload complete -> ReadingCrc");
                     _state = State.ReadingCrc;
                     _crcIndex = 0;
                 }
@@ -131,9 +145,11 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
 
             case State.ReadingCrc:
                 _crcBytes[_crcIndex++] = b;
+
                 if (_crcIndex == CrcSize)
                 {
                     _rxCrc = ReadU16LE(_crcBytes, 0);
+                    Trace($"CRC bytes read: rxCrc=0x{_rxCrc:X4} -> ReadingEof");
                     _state = State.ReadingEof;
                 }
                 return;
@@ -142,23 +158,29 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
                 if (b != EOF)
                 {
                     EmitError($"Missing EOF (got 0x{b:X2}). Resync.");
+                    Trace($"EOF missing (got 0x{b:X2}) -> Reset()");
                     Reset();
                     return;
                 }
 
-                // CRC must match encoder. Your encoder does CRC over:
-                // TYPE + FLAGS + SEQ + PAYLOAD
+                Trace("EOF OK. Computing CRC...");
+
                 var computed = ComputeCrc_LenThroughPayload();
+                Trace($"CRC compare: rx=0x{_rxCrc:X4}, calc=0x{computed.U16Value:X4}");
+
                 if (computed.U16Value != _rxCrc)
                 {
                     EmitError($"CRC mismatch. rx=0x{_rxCrc:X4}, calc=0x{computed.U16Value:X4}. Resync.");
+                    Trace("CRC mismatch -> Reset()");
                     Reset();
                     return;
                 }
 
+                Trace($"FrameDecoded TYPE=0x{_type:X4} SEQ={_seq} payloadLen={_payloadLen}");
+
                 var frame = new BinaryFrame(
                     PayloadLength: new UInt16HbLb((ushort)_payloadLen),
-                    Type: new UInt16HbLb(_type),
+                    Type: new Models.MessageType(_type),
                     Flags: _flags,
                     Seq: _seq,
                     Payload: _payload ?? Array.Empty<byte>(),
@@ -166,6 +188,10 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
                 );
 
                 FrameDecoded?.Invoke(frame);
+                Reset();
+                return;
+
+            default:
                 Reset();
                 return;
         }
@@ -204,4 +230,15 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
                | (buf[offset + 3] << 24));
 
     private void EmitError(string msg) => FrameError?.Invoke(msg);
+
+    private void Trace(string msg)
+    {
+#if DEBUG
+        if (!TraceEnabled) return;
+
+        var line = $"[Decoder] {msg}";
+        if (_trace is not null) _trace(line);
+        else Debug.WriteLine(line);
+#endif
+    }
 }
