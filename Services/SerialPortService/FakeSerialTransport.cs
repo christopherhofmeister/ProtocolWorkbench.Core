@@ -57,5 +57,10 @@
         }
 
         public void ClearWritten() => _tx.Clear();
+
+        public void Flush()
+        {
+
+        }
     }
 }

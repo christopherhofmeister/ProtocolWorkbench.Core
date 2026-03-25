@@ -57,6 +57,16 @@ namespace ProtocolWorkbench.Core.Services.SerialPortService
             _port.Write(buf, 0, buf.Length);
         }
 
+        public void Flush()
+        {
+            if (_port is null)
+            {
+                return;
+            }
+            _port.DiscardInBuffer();
+            _port.DiscardOutBuffer();
+        }
+
         private async Task ReaderLoopAsync(CancellationToken token)
         {
             var port = _port;

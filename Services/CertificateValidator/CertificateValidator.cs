@@ -25,6 +25,8 @@ public sealed class CertificateValidator : ICertificateValidator
             chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
             chain.ChainPolicy.VerificationFlags = X509VerificationFlags.NoFlag;
             chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+
+            // Add the root certificate to the trust store
             chain.ChainPolicy.CustomTrustStore.Add(rootCert);
 
             X509Certificate2? intermediateCert = null;
@@ -46,6 +48,7 @@ public sealed class CertificateValidator : ICertificateValidator
                     return CertificateValidationResult.Fail(FormatChainErrors(chain));
                 }
 
+                // Success: caller takes ownership of deviceCert
                 return CertificateValidationResult.Success(deviceCert);
             }
             catch

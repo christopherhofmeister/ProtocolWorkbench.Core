@@ -9,6 +9,7 @@
         P256EphemeralPublicB64, // SEC1 uncompressed pubkey -> base64
         SecurityKeyConfirmValueB64,
         SPNonce16B64,
+        ProvisioningSignedCertB64,
 
         // optional future ones
         Random32B64,

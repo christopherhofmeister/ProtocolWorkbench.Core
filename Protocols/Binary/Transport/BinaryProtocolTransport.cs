@@ -52,6 +52,11 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Transport
             _serial.Write(bytes);
         }
 
+        public void Flush()
+        {
+            _serial.Flush();
+        }
+
         private void OnFrameDecoded(BinaryFrame f)
         {
             try

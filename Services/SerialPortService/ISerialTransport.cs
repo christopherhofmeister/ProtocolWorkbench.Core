@@ -13,6 +13,8 @@
 
         void Write(ReadOnlySpan<byte> data);
 
+        void Flush();
+
         // for your text framing support
         int IdleGapMs { get; set; }
     }
