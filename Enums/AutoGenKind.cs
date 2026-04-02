@@ -10,6 +10,7 @@
         SecurityKeyConfirmValueB64,
         SPNonce16B64,
         ProvisioningSignedCertB64,
+        ProvisioningTrustPolicyB64,
 
         // optional future ones
         Random32B64,

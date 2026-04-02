@@ -1,5 +1,6 @@
 ﻿using ProtocolWorkbench.Core.Enums;
 using ProtocolWorkbench.Core.Models.ApiResponses;
+using ProtocolWorkbench.Core.Protocols.Binary.Models;
 using System.Buffers.Binary;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -9,6 +10,12 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
     public static class ManufacturingTecPayloadDecoder
     {
         public static byte[]? Csr { get; set; }
+
+        /// <summary>
+        /// Stores the 100-byte Base64-encoded Trust Policy fetched from the Cloud API.
+        /// This is used by the AutoGen service to populate the UART command fields.
+        /// </summary>
+        public static string? CurrentTrustPolicyB64 { get; set; }
 
         public static string CsrAsBase64()
         {
@@ -142,6 +149,21 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
             byte[] cert = payload.Slice(o, certLen).ToArray();
 
             return new GetCertificateInfoResponse(status, certLen, cert);
+        }
+
+        /// <summary>
+        /// Decodes the response from the SHP after an "Install Trust Policy" command.
+        /// Expected payload: [status (1 byte)]
+        /// </summary>
+        public static InstallTrustPolicyResponse DecodeInstallTrustPolicy(ReadOnlySpan<byte> payload)
+        {
+            if (payload.Length < 1)
+                throw new InvalidOperationException($"InstallTrustPolicy response too short: {payload.Length}");
+
+            // The SHP returns a single status byte (0 = Success)
+            var status = (RpcStatus)payload[0];
+
+            return new InstallTrustPolicyResponse(status);
         }
     }
 }
