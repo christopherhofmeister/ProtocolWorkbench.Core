@@ -11,6 +11,30 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
     {
         public static byte[]? Csr { get; set; }
 
+        public static byte[]? CommissioningCsr { get; set; }
+
+        public static string? CommissioningCertificatePem { get; set; }
+
+        public static string? CommissioningDeviceId { get; set; }
+
+        public static string CommissioningCsrAsBase64()
+        {
+            if (CommissioningCsr == null || CommissioningCsr.Length == 0)
+                return string.Empty;
+
+            return Convert.ToBase64String(CommissioningCsr);
+        }
+
+        public static string? CommissioningCertificatePemAsBase64()
+        {
+            if (string.IsNullOrWhiteSpace(CommissioningCertificatePem))
+                return string.Empty;
+
+            using var cert = X509CertificateLoader.LoadCertificate(Encoding.UTF8.GetBytes(CommissioningCertificatePem));
+            byte[] rawDerBytes = cert.RawData;
+            return Convert.ToBase64String(rawDerBytes);
+        }
+
         /// <summary>
         /// Stores the 100-byte Base64-encoded Trust Policy fetched from the Cloud API.
         /// This is used by the AutoGen service to populate the UART command fields.
@@ -164,6 +188,50 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
             var status = (RpcStatus)payload[0];
 
             return new InstallTrustPolicyResponse(status);
+        }
+
+        public static GetProvisionStatusResponse DecodeGetCommissioningStatus(ReadOnlySpan<byte> payload)
+        {
+            return DecodeGetProvisionStatus(payload);
+        }
+
+        public static GenerateCsrResponse DecodeGenerateCommissioningCsr(ReadOnlySpan<byte> payload)
+        {
+            // Minimum length: 1 (status) + 32 (deviceId) + 2 (csrLen) = 35 bytes
+            if (payload.Length < 35)
+                throw new InvalidOperationException($"GenerateCommissioningCSR payload too short: {payload.Length}");
+
+            int o = 0;
+
+            var status = (RpcStatus)payload[o++];
+
+            if (status != RpcStatus.Ok)
+                return new GenerateCsrResponse(status, null, 0, null);
+
+            string deviceId = Encoding.UTF8.GetString(payload.Slice(o, 32));
+            o += 32;
+
+            CommissioningDeviceId = deviceId;
+
+            ushort csrLen = BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(o, 2));
+            o += 2;
+
+            if (payload.Length < o + csrLen)
+                throw new InvalidOperationException("Commissioning CSR length exceeds payload.");
+
+            CommissioningCsr = payload.Slice(o, csrLen).ToArray();
+
+            return new GenerateCsrResponse(status, deviceId, csrLen, CommissioningCsr);
+        }
+
+        public static InstallCertificateResponse DecodeInstallCommissioningCertificate(ReadOnlySpan<byte> payload)
+        {
+            return DecodeInstallCertificate(payload);
+        }
+
+        public static GetCertificateInfoResponse DecodeGetCommissioningCertificateInfo(ReadOnlySpan<byte> payload)
+        {
+            return DecodeGetCertificateInfo(payload);
         }
     }
 }
