@@ -1,13 +1,29 @@
-﻿namespace ProtocolWorkbench.Core.Models
+﻿using ProtocolWorkbench.Core.Enums;
+using YamlDotNet.Serialization;
+
+namespace ProtocolWorkbench.Core.Models
 {
-    public sealed class ParamYamlItem
+    public class ParamYamlItem
     {
+        [YamlMember(Alias = "id")]
         public byte Id { get; set; }
-        public string Key { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string Access { get; set; } = "";  // readonly/writeonly/readwrite
-        public string CType { get; set; } = "";   // STRING, UINT32, etc
-        public int Max_Len { get; set; }          // max_len in YAML -> Max_Len in C# unless you map naming
+
+        [YamlMember(Alias = "key")]
+        public string? Key { get; set; }
+
+        [YamlMember(Alias = "name")]
+        public string? Name { get; set; }
+
+        [YamlMember(Alias = "access")]
+        public string? Access { get; set; }
+
+        [YamlMember(Alias = "ctype")]
+        public CTypes CTypeEnum { get; set; }
+
+        [YamlMember(Alias = "max_len")]
+        public int Max_Len { get; set; }
+
+        [YamlMember(Alias = "summary")]
         public string? Summary { get; set; }
     }
 }

@@ -179,12 +179,10 @@ public sealed class BinaryMessageBuilder : IBinaryMessageBuilder
         }
         else if (param.CType == CTypes.STRING)
         {
-            // NOTE: this format is weird (string of comma-separated bytes), but preserving behavior.
-            string[] strArray = param.Value.Split(',');
-            foreach (string s in strArray)
-                formattedPayload.Add(Convert.ToByte(s));
+            if (string.IsNullOrEmpty(param.Value))
+                return formattedPayload;
 
-            formattedPayload.Reverse();
+            formattedPayload.AddRange(System.Text.Encoding.UTF8.GetBytes(param.Value));
         }
         else if (param.CType == CTypes.BYTE_ARRAY)
         {

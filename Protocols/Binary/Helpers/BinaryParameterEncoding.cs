@@ -93,15 +93,10 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
             }
             else if (param.CType == CTypes.STRING)
             {
-                string[] strArray = param.Value.Split(',');
-                foreach (string s in strArray)
-                {
-                    byte b = Convert.ToByte(s);
-                    formattedPayload.Add(b);
-                }
+                if (string.IsNullOrEmpty(param.Value))
+                    return formattedPayload;
 
-                /* send lsb first for consistancy */
-                formattedPayload.Reverse();
+                formattedPayload.AddRange(System.Text.Encoding.UTF8.GetBytes(param.Value));
             }
             else if (param.CType == CTypes.BYTE_ARRAY)
             {
