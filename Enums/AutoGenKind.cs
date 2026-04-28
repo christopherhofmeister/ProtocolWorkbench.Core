@@ -11,6 +11,7 @@
         SPNonce16B64,
         ProvisioningSignedCertB64,
         ProvisioningTrustPolicyB64,
+        CommissioningSetupCodeU32,
 
         // optional future ones
         Random32B64,

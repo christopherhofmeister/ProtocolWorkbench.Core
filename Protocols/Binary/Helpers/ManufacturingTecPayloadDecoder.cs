@@ -233,5 +233,19 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
         {
             return DecodeGetCertificateInfo(payload);
         }
+
+        public static InstallSetupCodeResponse DecodeInstallSetupCode(byte[] payload)
+        {
+            if (payload is null || payload.Length < 1)
+                throw new ArgumentException("Payload too short.");
+
+            var status = (RpcStatus)payload[0];
+
+            var deviceId = payload.Length > 1
+                ? Encoding.ASCII.GetString(payload, 1, payload.Length - 1).TrimEnd('\0')
+                : string.Empty;
+
+            return new InstallSetupCodeResponse(status, deviceId);
+        }
     }
 }

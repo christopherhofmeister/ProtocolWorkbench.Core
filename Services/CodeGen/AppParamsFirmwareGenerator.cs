@@ -114,15 +114,6 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
         sb.AppendLine("bool app_params_get_ctype(uint8_t param_id, uint8_t *out_ctype);");
         sb.AppendLine();
 
-        sb.AppendLine("/*");
-        sb.AppendLine(" * User hooks.");
-        sb.AppendLine(" * Implement writable/custom parameter behavior in app-params-user.c.");
-        sb.AppendLine(" * Built-in readonly params such as firmware version and hardware UID are handled in generated app-params.c.");
-        sb.AppendLine(" */");
-        sb.AppendLine("app_param_status_t app_params_user_get(uint8_t id, uint8_t *out_value, size_t out_value_max, size_t *out_value_len);");
-        sb.AppendLine("app_param_status_t app_params_user_set(uint8_t id, const uint8_t *value, size_t value_len);");
-        sb.AppendLine();
-
         sb.AppendLine("#ifdef __cplusplus");
         sb.AppendLine("}");
         sb.AppendLine("#endif");
@@ -138,6 +129,7 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
         sb.AppendLine("/* DO NOT EDIT MANUALLY. Your changes will be overwritten. */");
         sb.AppendLine();
         sb.AppendLine("#include \"app-params.h\"");
+        sb.AppendLine("#include \"storage/shp-storage.h\"");
         sb.AppendLine();
         sb.AppendLine("#include <zephyr/drivers/hwinfo.h>");
         sb.AppendLine("#include <zephyr/kernel.h>");
@@ -153,21 +145,12 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
         sb.AppendLine("LOG_MODULE_REGISTER(app_params, LOG_LEVEL_INF);");
         sb.AppendLine();
         sb.AppendLine("#define SHP_FW_VERSION_STRING \"0.0.1\"");
+        sb.AppendLine("#define APP_PARAMS_STORAGE_BASE_ID 200U");
         sb.AppendLine();
 
         sb.AppendLine("static bool s_initialized = false;");
         sb.AppendLine("static app_params_config_t s_cfg;");
         sb.AppendLine();
-
-        foreach (var p in ps.Where(NeedsGeneratedStorage))
-        {
-            sb.AppendLine(GenerateStorageLine(p));
-        }
-
-        if (ps.Any(NeedsGeneratedStorage))
-        {
-            sb.AppendLine();
-        }
 
         sb.AppendLine("static const app_param_desc_t s_params[] = {");
         foreach (var p in ps)
@@ -179,6 +162,48 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
             sb.AppendLine("\t},");
         }
         sb.AppendLine("};");
+        sb.AppendLine();
+
+        sb.AppendLine("static uint16_t param_storage_id(uint8_t id)");
+        sb.AppendLine("{");
+        sb.AppendLine("\treturn (uint16_t)(APP_PARAMS_STORAGE_BASE_ID + id);");
+        sb.AppendLine("}");
+        sb.AppendLine();
+
+        sb.AppendLine("static app_param_status_t param_storage_read(uint8_t id, uint8_t *out_value, size_t out_value_max, size_t *out_value_len)");
+        sb.AppendLine("{");
+        sb.AppendLine("\tsize_t actual_len = 0U;");
+        sb.AppendLine("\tint rc;");
+        sb.AppendLine();
+        sb.AppendLine("\tif ((out_value == NULL) || (out_value_len == NULL)) {");
+        sb.AppendLine("\t\treturn APP_PARAM_STATUS_INVALID_ARG;");
+        sb.AppendLine("\t}");
+        sb.AppendLine();
+        sb.AppendLine("\trc = shp_storage_read(param_storage_id(id), out_value, out_value_max, &actual_len);");
+        sb.AppendLine("\tif (rc < 0) {");
+        sb.AppendLine("\t\treturn APP_PARAM_STATUS_NOT_FOUND;");
+        sb.AppendLine("\t}");
+        sb.AppendLine();
+        sb.AppendLine("\t*out_value_len = actual_len;");
+        sb.AppendLine("\treturn APP_PARAM_STATUS_OK;");
+        sb.AppendLine("}");
+        sb.AppendLine();
+
+        sb.AppendLine("static app_param_status_t param_storage_write(uint8_t id, const uint8_t *value, size_t value_len)");
+        sb.AppendLine("{");
+        sb.AppendLine("\tint rc;");
+        sb.AppendLine();
+        sb.AppendLine("\tif ((value == NULL) || (value_len == 0U)) {");
+        sb.AppendLine("\t\treturn APP_PARAM_STATUS_INVALID_ARG;");
+        sb.AppendLine("\t}");
+        sb.AppendLine();
+        sb.AppendLine("\trc = shp_storage_write(param_storage_id(id), value, value_len);");
+        sb.AppendLine("\tif (rc < 0) {");
+        sb.AppendLine("\t\treturn APP_PARAM_STATUS_INTERNAL_ERROR;");
+        sb.AppendLine("\t}");
+        sb.AppendLine();
+        sb.AppendLine("\treturn APP_PARAM_STATUS_OK;");
+        sb.AppendLine("}");
         sb.AppendLine();
 
         sb.AppendLine("static app_param_status_t param_get_fw_version(uint8_t *out_value, size_t out_value_max, size_t *out_value_len)");
@@ -418,7 +443,8 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
     private static bool IsHardwareUidParam(ParamYamlItem p)
         => string.Equals(p.Key, "dev/hw/uid", StringComparison.OrdinalIgnoreCase);
 
-    private static bool IsString(CTypes ctype) => ctype == CTypes.STRING;
+    private static bool IsString(CTypes ctype)
+        => ctype == CTypes.STRING;
 
     private static string BuildFlags(string? access, bool secure)
     {
@@ -492,12 +518,6 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
         return access is "writeonly" or "readwrite";
     }
 
-    private static bool IsReadable(ParamYamlItem p)
-    {
-        var access = (p.Access ?? string.Empty).Trim().ToLowerInvariant();
-        return access is "readonly" or "readwrite";
-    }
-
     private static bool NeedsGeneratedStorage(ParamYamlItem p)
     {
         if (IsFirmwareVersionParam(p) || IsHardwareUidParam(p))
@@ -506,28 +526,8 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
         return p.CTypeEnum is CTypes.UINT16 or CTypes.STRING;
     }
 
-    private static string ToStorageName(ParamYamlItem p)
-    {
-        return "s_" + ToEnumName(p.Key ?? p.Name ?? $"PARAM_{p.Id}", string.Empty)
-            .Trim('_')
-            .ToLowerInvariant();
-    }
-
-    private static string GenerateStorageLine(ParamYamlItem p)
-    {
-        var name = ToStorageName(p);
-
-        return p.CTypeEnum switch
-        {
-            CTypes.UINT16 => $"static uint16_t {name} = 0U;",
-            CTypes.STRING => $"static char {name}[{ToMaxLenName(p)} + 1U] = {{0}};",
-            _ => string.Empty
-        };
-    }
-
     private static string GenerateGetCaseBody(ParamYamlItem p)
     {
-        var name = ToStorageName(p);
         var sb = new StringBuilder();
 
         switch (p.CTypeEnum)
@@ -536,19 +536,11 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
                 sb.AppendLine("\t\tif (out_value_max < sizeof(uint16_t)) {");
                 sb.AppendLine("\t\t\treturn APP_PARAM_STATUS_BUFFER_TOO_SMALL;");
                 sb.AppendLine("\t\t}");
-                sb.AppendLine($"\t\tsys_put_le16({name}, out_value);");
-                sb.AppendLine("\t\t*out_value_len = sizeof(uint16_t);");
-                sb.AppendLine("\t\treturn APP_PARAM_STATUS_OK;");
+                sb.AppendLine("\t\treturn param_storage_read(id, out_value, out_value_max, out_value_len);");
                 break;
 
             case CTypes.STRING:
-                sb.AppendLine($"\t\tsize_t len = strlen({name});");
-                sb.AppendLine("\t\tif (out_value_max < len) {");
-                sb.AppendLine("\t\t\treturn APP_PARAM_STATUS_BUFFER_TOO_SMALL;");
-                sb.AppendLine("\t\t}");
-                sb.AppendLine($"\t\tmemcpy(out_value, {name}, len);");
-                sb.AppendLine("\t\t*out_value_len = len;");
-                sb.AppendLine("\t\treturn APP_PARAM_STATUS_OK;");
+                sb.AppendLine("\t\treturn param_storage_read(id, out_value, out_value_max, out_value_len);");
                 break;
 
             default:
@@ -561,7 +553,6 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
 
     private static string GenerateSetCaseBody(ParamYamlItem p)
     {
-        var name = ToStorageName(p);
         var sb = new StringBuilder();
 
         switch (p.CTypeEnum)
@@ -570,17 +561,14 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
                 sb.AppendLine("\t\tif (value_len != sizeof(uint16_t)) {");
                 sb.AppendLine("\t\t\treturn APP_PARAM_STATUS_INVALID_ARG;");
                 sb.AppendLine("\t\t}");
-                sb.AppendLine($"\t\t{name} = sys_get_le16(value);");
-                sb.AppendLine("\t\treturn APP_PARAM_STATUS_OK;");
+                sb.AppendLine("\t\treturn param_storage_write(id, value, value_len);");
                 break;
 
             case CTypes.STRING:
                 sb.AppendLine($"\t\tif (value_len > {ToMaxLenName(p)}) {{");
                 sb.AppendLine("\t\t\treturn APP_PARAM_STATUS_INVALID_ARG;");
                 sb.AppendLine("\t\t}");
-                sb.AppendLine($"\t\tmemcpy({name}, value, value_len);");
-                sb.AppendLine($"\t\t{name}[value_len] = '\\0';");
-                sb.AppendLine("\t\treturn APP_PARAM_STATUS_OK;");
+                sb.AppendLine("\t\treturn param_storage_write(id, value, value_len);");
                 break;
 
             default:
@@ -597,5 +585,4 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
             p.Key ?? p.Name ?? $"PARAM_{p.Id}",
             "APP_PARAM_MAX_LEN");
     }
-
 }

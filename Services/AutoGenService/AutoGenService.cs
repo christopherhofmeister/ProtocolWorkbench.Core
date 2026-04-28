@@ -14,7 +14,7 @@ namespace ProtocolWorkbench.Core.Services.AutoGenService
                 AutoGenKind.Random32B64 => RandomBytesB64(32),
                 AutoGenKind.UuidString => Guid.NewGuid().ToString(),
                 AutoGenKind.UnixTimeSeconds => DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(),
-
+                AutoGenKind.CommissioningSetupCodeU32 => RandomNumberGenerator.GetInt32(0, 100_000_000).ToString(),
                 _ => string.Empty
             };
         }
