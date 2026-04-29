@@ -7,6 +7,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Services\Security\ProvisioningCerts\ca-intermediate.crt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Services\Security\ProvisioningCerts\ca-root.crt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="FTD2XX.Net" Version="1.2.1" />
     <PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.51" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />

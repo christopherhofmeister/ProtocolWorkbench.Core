@@ -1,4 +1,4 @@
-﻿namespace ProtocolWorkbench.Services.Security
+﻿namespace ProtocolWorkbench.Core.Services.CertificateValidator
 {
     public interface ICertificateValidator
     {
