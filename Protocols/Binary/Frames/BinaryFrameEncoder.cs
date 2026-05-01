@@ -1,5 +1,6 @@
 ﻿using ProtocolWorkbench.Core.Services.CrcService;
 using ProtocolWorkBench.Core.Models;
+using System.Security.Cryptography;
 
 namespace ProtocolWorkbench.Core.Protocols.Binary.Frames;
 
@@ -22,6 +23,70 @@ public sealed class BinaryFrameEncoder : IBinaryFrameEncoder
     public BinaryFrameEncoder(ICrcService crc)
     {
         _crc = crc ?? throw new ArgumentNullException(nameof(crc));
+    }
+
+    public byte[] EncodeSecureChaCha20Poly1305(BinaryFrame frame, byte[] key32, byte[] nonceBase12)
+    {
+        if (frame.Payload is null)
+            throw new ArgumentNullException(nameof(frame.Payload));
+
+        byte[] nonce = BuildNonce(nonceBase12, frame.Seq);
+
+        byte[] aad = BuildAad(frame, frame.Payload.Length);
+
+        byte[] ciphertext = new byte[frame.Payload.Length];
+        byte[] tag = new byte[16];
+
+        using var aead = new ChaCha20Poly1305(key32);
+        aead.Encrypt(nonce, frame.Payload, ciphertext, tag, aad);
+
+        byte[] securePayload = new byte[ciphertext.Length + tag.Length];
+        Buffer.BlockCopy(ciphertext, 0, securePayload, 0, ciphertext.Length);
+        Buffer.BlockCopy(tag, 0, securePayload, ciphertext.Length, tag.Length);
+
+        return Encode(new BinaryFrame(
+            PayloadLength: new UInt16HbLb((ushort)securePayload.Length),
+            Type: frame.Type,
+            Flags: frame.Flags,
+            Seq: frame.Seq,
+            Payload: securePayload,
+            Crc16: new UInt16HbLb(0)
+        ));
+    }
+
+    private static byte[] BuildNonce(byte[] baseNonce, uint seq)
+    {
+        byte[] nonce = (byte[])baseNonce.Clone();
+
+        nonce[8] = (byte)(seq & 0xFF);
+        nonce[9] = (byte)((seq >> 8) & 0xFF);
+        nonce[10] = (byte)((seq >> 16) & 0xFF);
+        nonce[11] = (byte)((seq >> 24) & 0xFF);
+
+        return nonce;
+    }
+
+    private byte[] BuildAad(BinaryFrame frame, int payloadLen)
+    {
+        const int TagSize = 16;
+
+        ushort aeadLenAfterLen = checked((ushort)(
+            2 + 1 + 4 + payloadLen + TagSize + 1));
+
+        byte[] aad = new byte[9];
+        int a = 0;
+
+        aad[a++] = (byte)(aeadLenAfterLen & 0xFF);
+        aad[a++] = (byte)(aeadLenAfterLen >> 8);
+        aad[a++] = (byte)(frame.Type.Value & 0xFF);
+        aad[a++] = (byte)(frame.Type.Value >> 8);
+        aad[a++] = frame.Flags;
+        aad[a++] = (byte)(frame.Seq & 0xFF);
+        aad[a++] = (byte)(frame.Seq >> 8);
+        aad[a++] = (byte)(frame.Seq >> 16);
+        aad[a++] = (byte)(frame.Seq >> 24);
+
+        return aad;
     }
 
     public byte[] Encode(BinaryFrame frame)
