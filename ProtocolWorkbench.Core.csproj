@@ -7,10 +7,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Services\Security\ProvisioningCerts\commissioning-intermediate.cert.pem" />
+    <None Remove="Services\Security\ProvisioningCerts\commissioning-root.cert.pem" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Services\Security\ProvisioningCerts\ca-intermediate.crt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
     <EmbeddedResource Include="Services\Security\ProvisioningCerts\ca-root.crt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Services\Security\ProvisioningCerts\commissioning-intermediate.cert.pem">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Services\Security\ProvisioningCerts\commissioning-root.cert.pem">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
   </ItemGroup>
@@ -23,6 +34,10 @@
     <PackageReference Include="PeterO.Cbor" Version="4.5.5" />
     <PackageReference Include="System.IO.Ports" Version="10.0.2" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\shp-device-provisioning\Shp.Device.Provisioning.Dtos\Shp.Device.Provisioning.Dtos.csproj" />
   </ItemGroup>
 
 </Project>

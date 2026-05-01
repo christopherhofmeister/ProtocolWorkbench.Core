@@ -80,7 +80,7 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
 
     public void PushByte(byte b)
     {
-        Trace($"Byte 0x{b:X2} state={_state} (h={_headerIndex}/{HeaderSize}, p={_payloadIndex}/{_payloadLen}, c={_crcIndex}/{CrcSize})");
+        //Trace($"Byte 0x{b:X2} state={_state} (h={_headerIndex}/{HeaderSize}, p={_payloadIndex}/{_payloadLen}, c={_crcIndex}/{CrcSize})");
 
         switch (_state)
         {

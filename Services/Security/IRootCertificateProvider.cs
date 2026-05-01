@@ -4,5 +4,7 @@
     {
         byte[] GetRootCaDer();
         byte[] GetIntermediateCaDer();
+        byte[] GetCommissioningRootCaDer();
+        byte[] GetCommissioningIntermediateCaDer();
     }
 }

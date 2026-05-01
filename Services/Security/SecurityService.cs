@@ -5,6 +5,7 @@ using Org.BouncyCastle.Math;
 using ProtocolWorkbench.Core.Protocols.Binary.Models;
 using ProtocolWorkbench.Core.Services.CertificateValidator;
 using ProtocolWorkbench.Core.Services.TrustPolicy;
+using Shp.Device.Provisioning.Dtos.Enums;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -231,39 +232,57 @@ namespace ProtocolWorkbench.Core.Services.Security
                 nonceShpToSp);
         }
 
-        public async Task ProcessEstablishResponseAsync(uint seq, SecurityEstablishResponse resp)
+        public async Task ProcessEstablishResponseAsync(uint seq, SecurityEstablishResponse resp, IntermediateCertificatePurpose purpose)
         {
-            if (resp is null) throw new ArgumentNullException(nameof(resp));
+            if (resp is null)
+                throw new ArgumentNullException(nameof(resp));
+
             if (resp.Status != 0)
                 throw new InvalidOperationException($"Establish Session failed: status={resp.Status}");
 
-            // 1. Get the 'Context' for this specific handshake
-            PendingEstablish pend = GetPendingOrThrow(seq);
+            PendingEstablish pending = GetPendingOrThrow(seq);
 
-            // 2. Fetch the 'Rulebook' (Trust Policy) from SecureStorage
-            var trustPolicy = await _secureTrustPolicyStore.GetCurrentPolicyAsync()
+            TrustPolicyModel trustPolicy =
+                await _secureTrustPolicyStore.GetCurrentPolicyAsync(purpose)
                 ?? throw new InvalidOperationException("No Trust Policy found in secure storage. Handshake aborted.");
 
             try
             {
-                // 3) Transcript + hash (The 'Paper Trail' of the handshake)
                 byte[] transcript = BuildTranscript(
-                    pend.ProtocolVersion,
-                    pend.SuiteId,
-                    pend.SpNonce16,
-                    pend.SpPub65,
+                    pending.ProtocolVersion,
+                    pending.SuiteId,
+                    pending.SpNonce16,
+                    pending.SpPub65,
                     resp.ShpEcdhPub);
 
                 byte[] transcriptHash = SHA256.HashData(transcript);
-                LogHandshakeInputs(pend, resp, transcript, transcriptHash);
 
-                // 4a) Cryptographic Validation (Is the cert real and not expired?)
-                var rootCert = _rootCertificateProvider.GetRootCaDer();
-                var intermediateCertDer = _rootCertificateProvider.GetIntermediateCaDer();
+                LogHandshakeInputs(pending, resp, transcript, transcriptHash);
+                LogCertificateInputs(resp);
+
+                byte[] rootCertDer = GetRootForPurpose(purpose);
+                byte[] intermediateCertDer = GetIntermediateForPurpose(purpose);
+
+                Debug.WriteLine($"[CERT PURPOSE] {purpose}");
+                Debug.WriteLine($"[INT DER SHA256] {Convert.ToHexString(SHA256.HashData(intermediateCertDer))}");
+
+                using var rootCert = X509CertificateLoader.LoadCertificate(rootCertDer);
+                using var intermediateCert = X509CertificateLoader.LoadCertificate(intermediateCertDer);
+                using var responseCert = X509CertificateLoader.LoadCertificate(resp.ShpDeviceCert);
+
+                Debug.WriteLine($"[ROOT] Subject={rootCert.Subject}");
+                Debug.WriteLine($"[ROOT] Thumbprint={rootCert.Thumbprint}");
+                Debug.WriteLine($"[INT] Subject={intermediateCert.Subject}");
+                Debug.WriteLine($"[INT] Thumbprint={intermediateCert.Thumbprint}");
+                Debug.WriteLine($"[CERT] Subject={responseCert.Subject}");
+                Debug.WriteLine($"[CERT] Issuer={responseCert.Issuer}");
+                Debug.WriteLine($"[CERT] Thumbprint={responseCert.Thumbprint}");
+                Debug.WriteLine($"[CERT] NotBefore={responseCert.NotBefore:o}");
+                Debug.WriteLine($"[CERT] NotAfter={responseCert.NotAfter:o}");
 
                 var certResult = _certificateValidator.ValidateDeviceCertificate(
                     deviceCertDer: resp.ShpDeviceCert,
-                    rootCaCertDer: rootCert,
+                    rootCaCertDer: rootCertDer,
                     intermediateCertDer: intermediateCertDer);
 
                 if (!certResult.IsValid)
@@ -271,31 +290,25 @@ namespace ProtocolWorkbench.Core.Services.Security
 
                 using var deviceCert = certResult.DeviceCertificate!;
 
-                // 4b) POLICY ENFORCEMENT: Check the Allow-List
-                // We verify the Intermediate CA's SPKI hash against our persisted policy.
-                VerifyTrustPolicyPin(deviceCert, trustPolicy, intermediateCertDer, rootCert);
+                VerifyTrustPolicyPin(deviceCert, trustPolicy, intermediateCertDer, rootCertDer);
 
                 Debug.WriteLine($"[SEC] Policy Match: Version {trustPolicy.Version} enforced.");
 
-                // 5) Prove Ownership: Verify signature using the validated cert
                 VerifyEstablishSignatureOrThrow(deviceCert, resp, transcriptHash);
 
-                // 6) ECDH Shared Secret (The 'Secret Handshake')
-                byte[] sharedSecret = DeriveSharedSecretRawP256_X(pend.SpPrivateParams, resp.ShpEcdhPub);
+                byte[] sharedSecret = DeriveSharedSecretRawP256_X(pending.SpPrivateParams, resp.ShpEcdhPub);
 
-                // 7) Session Derivation (HKDF)
                 var derived = DeriveSessionMaterial(sharedSecret, transcriptHash);
 
-                // 8) Persist the Session
                 await _state.SaveEstablishedSessionAsync(
                     transcriptHash32: transcriptHash,
                     keySpToShp32: derived.KeySpToShp32,
                     keyShpToSp32: derived.KeyShpToSp32,
                     nonceBaseSpToShp12: derived.NonceBaseSpToShp12,
-                    nonceBaseShpToSp12: derived.NonceBaseShpToSp12
-                );
+                    nonceBaseShpToSp12: derived.NonceBaseShpToSp12);
 
                 RemovePending(seq);
+
                 Debug.WriteLine("[SEC] Security Session Established successfully.");
             }
             catch (Exception ex)
@@ -303,6 +316,18 @@ namespace ProtocolWorkbench.Core.Services.Security
                 Debug.WriteLine($"[SEC] Handshake Failed: {ex.Message}");
                 throw;
             }
+        }
+
+        private static void LogCertificateInputs(SecurityEstablishResponse resp)
+        {
+            using var cert = X509CertificateLoader.LoadCertificate(resp.ShpDeviceCert);
+
+            Debug.WriteLine($"[CERT] Device cert len={resp.ShpDeviceCert.Length}");
+            Debug.WriteLine($"[CERT] Subject={cert.Subject}");
+            Debug.WriteLine($"[CERT] Issuer={cert.Issuer}");
+            Debug.WriteLine($"[CERT] Thumbprint={cert.Thumbprint}");
+            Debug.WriteLine($"[CERT] NotBefore={cert.NotBefore:o}");
+            Debug.WriteLine($"[CERT] NotAfter={cert.NotAfter:o}");
         }
 
         static byte[] ExportCertPubSec1(X509Certificate2 cert)
@@ -512,6 +537,36 @@ namespace ProtocolWorkbench.Core.Services.Security
                 Debug.WriteLine($"[SEC] Actual:   {Convert.ToHexString(actualSpkiHash)}");
                 throw new System.Security.SecurityException("Trust Policy Violation: Intermediate CA is not authorized.");
             }
+        }
+
+        private byte[] GetRootForPurpose(IntermediateCertificatePurpose purpose)
+        {
+            return purpose switch
+            {
+                IntermediateCertificatePurpose.DeviceIdentity =>
+
+                    _rootCertificateProvider.GetRootCaDer(),
+
+                IntermediateCertificatePurpose.CommissioningIdentity =>
+
+                    _rootCertificateProvider.GetCommissioningRootCaDer(),
+
+                _ => throw new InvalidOperationException($"Unsupported certificate purpose: {purpose}")
+            };
+        }
+
+        private byte[] GetIntermediateForPurpose(IntermediateCertificatePurpose purpose)
+        {
+            return purpose switch
+            {
+                IntermediateCertificatePurpose.DeviceIdentity =>
+                    _rootCertificateProvider.GetIntermediateCaDer(),
+
+                IntermediateCertificatePurpose.CommissioningIdentity =>
+                    _rootCertificateProvider.GetCommissioningIntermediateCaDer(),
+
+                _ => throw new InvalidOperationException($"Unsupported certificate purpose: {purpose}")
+            };
         }
 
     }
