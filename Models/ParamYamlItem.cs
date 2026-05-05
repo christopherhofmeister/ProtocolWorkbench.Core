@@ -25,5 +25,42 @@ namespace ProtocolWorkbench.Core.Models
 
         [YamlMember(Alias = "summary")]
         public string? Summary { get; set; }
+
+        [YamlMember(Alias = "default")]
+        public string? Default { get; set; }
+
+        [YamlMember(Alias = "debug_access")]
+        public string? DebugAccess { get; set; }
+
+        [YamlMember(Alias = "factory_access")]
+        public string? FactoryAccess { get; set; }
+
+        [YamlMember(Alias = "storage")]
+        public string? Storage { get; set; }
+
+        [YamlMember(Alias = "storage_id")]
+        public ushort? StorageId { get; set; }
+
+        [YamlIgnore]
+        public AccessTypes AccessEnum => ParseAccess(Access);
+
+        [YamlIgnore]
+        public AccessTypes DebugAccessEnum => ParseAccess(
+            string.IsNullOrWhiteSpace(DebugAccess) ? Access : DebugAccess);
+
+        [YamlIgnore]
+        public AccessTypes FactoryAccessEnum => ParseAccess(
+            string.IsNullOrWhiteSpace(FactoryAccess) ? Access : FactoryAccess);
+
+        private static AccessTypes ParseAccess(string? s)
+        {
+            return (s ?? "").Trim().ToLowerInvariant() switch
+            {
+                "readonly" => AccessTypes.ReadOnly,
+                "writeonly" => AccessTypes.WriteOnly,
+                "readwrite" => AccessTypes.ReadWrite,
+                _ => AccessTypes.None
+            };
+        }
     }
 }
