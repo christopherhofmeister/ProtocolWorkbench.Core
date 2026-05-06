@@ -120,10 +120,18 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
         sb.AppendLine("} app_param_desc_t;");
         sb.AppendLine();
 
+        sb.AppendLine("typedef void (*app_params_changed_cb_t)(app_param_id_t id, void *user_data);");
+        sb.AppendLine();
+        sb.AppendLine("#ifndef APP_PARAMS_MAX_CHANGED_CALLBACKS");
+        sb.AppendLine("#define APP_PARAMS_MAX_CHANGED_CALLBACKS 4U");
+        sb.AppendLine("#endif");
+        sb.AppendLine();
+
         sb.AppendLine("int app_params_init(const app_params_config_t *cfg);");
         sb.AppendLine("void app_params_deinit(void);");
         sb.AppendLine();
         sb.AppendLine("const app_param_desc_t *app_params_find(uint8_t id);");
+        sb.AppendLine("int app_params_register_changed_cb(app_params_changed_cb_t cb, void *user_data);");
         sb.AppendLine();
         sb.AppendLine("app_param_status_t app_params_get(uint8_t id, uint8_t *out_value, size_t out_value_max, size_t *out_value_len);");
         sb.AppendLine("app_param_status_t app_params_set(uint8_t id, const uint8_t *value, size_t value_len);");
@@ -168,6 +176,8 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
 
         sb.AppendLine("static bool s_initialized = false;");
         sb.AppendLine("static app_params_config_t s_cfg;");
+        sb.AppendLine("static app_params_changed_cb_t s_changed_cbs[APP_PARAMS_MAX_CHANGED_CALLBACKS];");
+        sb.AppendLine("static void *s_changed_user_data[APP_PARAMS_MAX_CHANGED_CALLBACKS];");
         sb.AppendLine();
 
         sb.AppendLine("static const app_param_desc_t s_params[] = {");
@@ -210,6 +220,7 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
         sb.AppendLine("}");
         sb.AppendLine();
 
+        AppendChangeNotificationFunctions(sb);
         AppendStorageFunctions(sb);
         AppendDefaultFunction(sb, ps);
         AppendFixedParamFunctions(sb);
@@ -223,6 +234,43 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
         AppendCTypeFunction(sb, ps);
 
         return sb.ToString();
+    }
+
+    private static void AppendChangeNotificationFunctions(StringBuilder sb)
+    {
+        sb.AppendLine("static void app_params_notify_changed(app_param_id_t id)");
+        sb.AppendLine("{");
+        sb.AppendLine("\tfor (size_t i = 0U; i < APP_PARAMS_MAX_CHANGED_CALLBACKS; i++) {");
+        sb.AppendLine("\t\tif (s_changed_cbs[i] != NULL) {");
+        sb.AppendLine("\t\t\ts_changed_cbs[i](id, s_changed_user_data[i]);");
+        sb.AppendLine("\t\t}");
+        sb.AppendLine("\t}");
+        sb.AppendLine("}");
+        sb.AppendLine();
+
+        sb.AppendLine("int app_params_register_changed_cb(app_params_changed_cb_t cb, void *user_data)");
+        sb.AppendLine("{");
+        sb.AppendLine("\tif (cb == NULL) {");
+        sb.AppendLine("\t\treturn -EINVAL;");
+        sb.AppendLine("\t}");
+        sb.AppendLine();
+        sb.AppendLine("\tfor (size_t i = 0U; i < APP_PARAMS_MAX_CHANGED_CALLBACKS; i++) {");
+        sb.AppendLine("\t\tif (s_changed_cbs[i] == cb && s_changed_user_data[i] == user_data) {");
+        sb.AppendLine("\t\t\treturn 0;");
+        sb.AppendLine("\t\t}");
+        sb.AppendLine("\t}");
+        sb.AppendLine();
+        sb.AppendLine("\tfor (size_t i = 0U; i < APP_PARAMS_MAX_CHANGED_CALLBACKS; i++) {");
+        sb.AppendLine("\t\tif (s_changed_cbs[i] == NULL) {");
+        sb.AppendLine("\t\t\ts_changed_cbs[i] = cb;");
+        sb.AppendLine("\t\t\ts_changed_user_data[i] = user_data;");
+        sb.AppendLine("\t\t\treturn 0;");
+        sb.AppendLine("\t\t}");
+        sb.AppendLine("\t}");
+        sb.AppendLine();
+        sb.AppendLine("\treturn -ENOMEM;");
+        sb.AppendLine("}");
+        sb.AppendLine();
     }
 
     private static void AppendStorageFunctions(StringBuilder sb)
@@ -839,28 +887,52 @@ public sealed class AppParamsFirmwareGenerator : IAppParamsFirmwareGenerator
                 sb.AppendLine("\t\tif (value_len != sizeof(uint8_t)) {");
                 sb.AppendLine("\t\t\treturn APP_PARAM_STATUS_INVALID_ARG;");
                 sb.AppendLine("\t\t}");
-                sb.AppendLine("\t\treturn param_storage_write(desc, value, value_len);");
+                sb.AppendLine("\t\t{");
+                sb.AppendLine("\t\t\tapp_param_status_t st = param_storage_write(desc, value, value_len);");
+                sb.AppendLine("\t\t\tif (st == APP_PARAM_STATUS_OK) {");
+                sb.AppendLine("\t\t\t\tapp_params_notify_changed((app_param_id_t)id);");
+                sb.AppendLine("\t\t\t}");
+                sb.AppendLine("\t\t\treturn st;");
+                sb.AppendLine("\t\t}");
                 break;
 
             case CTypes.UINT16:
                 sb.AppendLine("\t\tif (value_len != sizeof(uint16_t)) {");
                 sb.AppendLine("\t\t\treturn APP_PARAM_STATUS_INVALID_ARG;");
                 sb.AppendLine("\t\t}");
-                sb.AppendLine("\t\treturn param_storage_write(desc, value, value_len);");
+                sb.AppendLine("\t\t{");
+                sb.AppendLine("\t\t\tapp_param_status_t st = param_storage_write(desc, value, value_len);");
+                sb.AppendLine("\t\t\tif (st == APP_PARAM_STATUS_OK) {");
+                sb.AppendLine("\t\t\t\tapp_params_notify_changed((app_param_id_t)id);");
+                sb.AppendLine("\t\t\t}");
+                sb.AppendLine("\t\t\treturn st;");
+                sb.AppendLine("\t\t}");
                 break;
 
             case CTypes.UINT32:
                 sb.AppendLine("\t\tif (value_len != sizeof(uint32_t)) {");
                 sb.AppendLine("\t\t\treturn APP_PARAM_STATUS_INVALID_ARG;");
                 sb.AppendLine("\t\t}");
-                sb.AppendLine("\t\treturn param_storage_write(desc, value, value_len);");
+                sb.AppendLine("\t\t{");
+                sb.AppendLine("\t\t\tapp_param_status_t st = param_storage_write(desc, value, value_len);");
+                sb.AppendLine("\t\t\tif (st == APP_PARAM_STATUS_OK) {");
+                sb.AppendLine("\t\t\t\tapp_params_notify_changed((app_param_id_t)id);");
+                sb.AppendLine("\t\t\t}");
+                sb.AppendLine("\t\t\treturn st;");
+                sb.AppendLine("\t\t}");
                 break;
 
             case CTypes.STRING:
                 sb.AppendLine($"\t\tif (value_len > {ToMaxLenName(p)}) {{");
                 sb.AppendLine("\t\t\treturn APP_PARAM_STATUS_INVALID_ARG;");
                 sb.AppendLine("\t\t}");
-                sb.AppendLine("\t\treturn param_storage_write(desc, value, value_len);");
+                sb.AppendLine("\t\t{");
+                sb.AppendLine("\t\t\tapp_param_status_t st = param_storage_write(desc, value, value_len);");
+                sb.AppendLine("\t\t\tif (st == APP_PARAM_STATUS_OK) {");
+                sb.AppendLine("\t\t\t\tapp_params_notify_changed((app_param_id_t)id);");
+                sb.AppendLine("\t\t\t}");
+                sb.AppendLine("\t\t\treturn st;");
+                sb.AppendLine("\t\t}");
                 break;
 
             default:
