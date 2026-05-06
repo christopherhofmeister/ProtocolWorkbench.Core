@@ -27,31 +27,46 @@ public sealed class BinaryFrameEncoder : IBinaryFrameEncoder
 
     public byte[] EncodeSecureChaCha20Poly1305(BinaryFrame frame, byte[] key32, byte[] nonceBase12)
     {
+        const int TagSize = 16;
+
         if (frame.Payload is null)
             throw new ArgumentNullException(nameof(frame.Payload));
 
-        byte[] nonce = BuildNonce(nonceBase12, frame.Seq);
+        if (key32.Length != 32)
+            throw new ArgumentException("Key must be 32 bytes.", nameof(key32));
 
+        if (nonceBase12.Length != 12)
+            throw new ArgumentException("Nonce base must be 12 bytes.", nameof(nonceBase12));
+
+        byte[] nonce = BuildNonce(nonceBase12, frame.Seq);
         byte[] aad = BuildAad(frame, frame.Payload.Length);
 
         byte[] ciphertext = new byte[frame.Payload.Length];
-        byte[] tag = new byte[16];
+        byte[] tag = new byte[TagSize];
 
         using var aead = new ChaCha20Poly1305(key32);
         aead.Encrypt(nonce, frame.Payload, ciphertext, tag, aad);
 
-        byte[] securePayload = new byte[ciphertext.Length + tag.Length];
-        Buffer.BlockCopy(ciphertext, 0, securePayload, 0, ciphertext.Length);
-        Buffer.BlockCopy(tag, 0, securePayload, ciphertext.Length, tag.Length);
+        ushort lenAfterLen = checked((ushort)(
+            TypeSize + FlagsSize + SeqSize + ciphertext.Length + tag.Length + 1)); // EOF only, no CRC
 
-        return Encode(new BinaryFrame(
-            PayloadLength: new UInt16HbLb((ushort)securePayload.Length),
-            Type: frame.Type,
-            Flags: frame.Flags,
-            Seq: frame.Seq,
-            Payload: securePayload,
-            Crc16: new UInt16HbLb(0)
-        ));
+        byte[] buffer = new byte[1 + LenFieldSize + TypeSize + FlagsSize + SeqSize +
+                                 ciphertext.Length + tag.Length + 1];
+
+        int o = 0;
+        buffer[o++] = SOF;
+
+        WriteU16LE(buffer, o, lenAfterLen); o += LenFieldSize;
+        WriteU16LE(buffer, o, frame.Type.Value); o += TypeSize;
+        buffer[o++] = frame.Flags;
+        WriteU32LE(buffer, o, frame.Seq); o += SeqSize;
+
+        ciphertext.CopyTo(buffer.AsSpan(o)); o += ciphertext.Length;
+        tag.CopyTo(buffer.AsSpan(o)); o += tag.Length;
+
+        buffer[o++] = EOF;
+
+        return buffer;
     }
 
     private static byte[] BuildNonce(byte[] baseNonce, uint seq)

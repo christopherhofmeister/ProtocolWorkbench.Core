@@ -10,19 +10,27 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
     public const byte SOF = 0xAA;
     public const byte EOF = 0x55;
 
-    private const int LenSize = 2; // u16
-    private const int TypeSize = 2; // u16
+    private const byte FlagSecure = 1 << 7;
+
+    private const int LenSize = 2;   // u16
+    private const int TypeSize = 2;  // u16
     private const int FlagsSize = 1; // u8
-    private const int SeqSize = 4; // u32
-    private const int CrcSize = 2; // u16
+    private const int SeqSize = 4;   // u32
+    private const int CrcSize = 2;   // u16
 
     // Header on wire after SOF: LEN + TYPE + FLAGS + SEQ
     private const int HeaderSize = LenSize + TypeSize + FlagsSize + SeqSize;
 
-    // Bytes after LEN that are always present, excluding payload:
-    // TYPE + FLAGS + SEQ + CRC + EOF
-    private const int FixedAfterLenNoPayload =
-        TypeSize + FlagsSize + SeqSize + CrcSize + 1; // EOF
+    // Plaintext:
+    //   LEN covers TYPE + FLAGS + SEQ + PAYLOAD + CRC + EOF
+    private const int FixedAfterLenNoPayloadPlain =
+        TypeSize + FlagsSize + SeqSize + CrcSize + 1;
+
+    // Secure:
+    //   LEN covers TYPE + FLAGS + SEQ + CIPHERTEXT_AND_TAG + EOF
+    //   No CRC. AEAD tag authenticates the header and payload.
+    private const int FixedAfterLenNoPayloadSecure =
+        TypeSize + FlagsSize + SeqSize + 1;
 
     private readonly int _maxPayloadLength;
     private readonly ICrcService _crc;
@@ -33,7 +41,15 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
     private readonly Action<string>? _trace;
     public bool TraceEnabled { get; set; } = true;
 
-    private enum State { SeekingSof, ReadingHeader, ReadingPayload, ReadingCrc, ReadingEof }
+    private enum State
+    {
+        SeekingSof,
+        ReadingHeader,
+        ReadingPayload,
+        ReadingCrc,
+        ReadingEof
+    }
+
     private State _state = State.SeekingSof;
 
     private readonly byte[] _header = new byte[HeaderSize];
@@ -51,6 +67,8 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
     private readonly byte[] _crcBytes = new byte[CrcSize];
     private int _crcIndex;
     private ushort _rxCrc;
+
+    private bool IsSecureFrame => (_flags & FlagSecure) != 0;
 
     public BinaryFrameDecoder(ICrcService crc, int maxPayloadLength = 4096, Action<string>? trace = null)
     {
@@ -80,8 +98,6 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
 
     public void PushByte(byte b)
     {
-        //Trace($"Byte 0x{b:X2} state={_state} (h={_headerIndex}/{HeaderSize}, p={_payloadIndex}/{_payloadLen}, c={_crcIndex}/{CrcSize})");
-
         switch (_state)
         {
             case State.SeekingSof:
@@ -103,18 +119,22 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
                     _flags = _header[4];
                     _seq = ReadU32LE(_header, 5);
 
-                    Trace($"Header done: LEN(afterLEN)={_lenAfterLen} TYPE=0x{_type:X4} FLAGS=0x{_flags:X2} SEQ={_seq}");
+                    Trace($"Header done: LEN(afterLEN)={_lenAfterLen} TYPE=0x{_type:X4} FLAGS=0x{_flags:X2} SEQ={_seq} secure={IsSecureFrame}");
 
-                    if (_lenAfterLen < FixedAfterLenNoPayload)
+                    int fixedAfterLenNoPayload = IsSecureFrame
+                        ? FixedAfterLenNoPayloadSecure
+                        : FixedAfterLenNoPayloadPlain;
+
+                    if (_lenAfterLen < fixedAfterLenNoPayload)
                     {
-                        EmitError($"LEN {_lenAfterLen} too small (min {FixedAfterLenNoPayload}). Resync.");
+                        EmitError($"LEN {_lenAfterLen} too small (min {fixedAfterLenNoPayload}). Resync.");
                         Trace("LEN too small -> Reset()");
                         Reset();
                         return;
                     }
 
-                    _payloadLen = _lenAfterLen - FixedAfterLenNoPayload;
-                    Trace($"Computed payloadLen={_payloadLen} (FixedAfterLenNoPayload={FixedAfterLenNoPayload})");
+                    _payloadLen = _lenAfterLen - fixedAfterLenNoPayload;
+                    Trace($"Computed payloadLen={_payloadLen} secure={IsSecureFrame} fixed={fixedAfterLenNoPayload}");
 
                     if (_payloadLen > _maxPayloadLength)
                     {
@@ -127,7 +147,15 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
                     _payload = _payloadLen == 0 ? Array.Empty<byte>() : new byte[_payloadLen];
                     _payloadIndex = 0;
 
-                    _state = _payloadLen == 0 ? State.ReadingCrc : State.ReadingPayload;
+                    _state = _payloadLen == 0
+                        ? (IsSecureFrame ? State.ReadingEof : State.ReadingCrc)
+                        : State.ReadingPayload;
+
+                    if (_state == State.ReadingCrc)
+                    {
+                        _crcIndex = 0;
+                    }
+
                     Trace($"Transition -> {_state}");
                 }
                 return;
@@ -137,9 +165,17 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
 
                 if (_payloadIndex == _payloadLen)
                 {
-                    Trace("Payload complete -> ReadingCrc");
-                    _state = State.ReadingCrc;
-                    _crcIndex = 0;
+                    if (IsSecureFrame)
+                    {
+                        Trace("Secure payload complete -> ReadingEof");
+                        _state = State.ReadingEof;
+                    }
+                    else
+                    {
+                        Trace("Payload complete -> ReadingCrc");
+                        _state = State.ReadingCrc;
+                        _crcIndex = 0;
+                    }
                 }
                 return;
 
@@ -163,20 +199,27 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
                     return;
                 }
 
-                Trace("EOF OK. Computing CRC...");
-
-                var computed = ComputeCrc_LenThroughPayload();
-                Trace($"CRC compare: rx=0x{_rxCrc:X4}, calc=0x{computed.U16Value:X4}");
-
-                if (computed.U16Value != _rxCrc)
+                if (!IsSecureFrame)
                 {
-                    EmitError($"CRC mismatch. rx=0x{_rxCrc:X4}, calc=0x{computed.U16Value:X4}. Resync.");
-                    Trace("CRC mismatch -> Reset()");
-                    Reset();
-                    return;
+                    Trace("EOF OK. Computing CRC...");
+
+                    var computed = ComputeCrc_LenThroughPayload();
+                    Trace($"CRC compare: rx=0x{_rxCrc:X4}, calc=0x{computed.U16Value:X4}");
+
+                    if (computed.U16Value != _rxCrc)
+                    {
+                        EmitError($"CRC mismatch. rx=0x{_rxCrc:X4}, calc=0x{computed.U16Value:X4}. Resync.");
+                        Trace("CRC mismatch -> Reset()");
+                        Reset();
+                        return;
+                    }
+                }
+                else
+                {
+                    Trace("Secure EOF OK. Skipping CRC.");
                 }
 
-                Trace($"FrameDecoded TYPE=0x{_type:X4} SEQ={_seq} payloadLen={_payloadLen}");
+                Trace($"FrameDecoded TYPE=0x{_type:X4} FLAGS=0x{_flags:X2} SEQ={_seq} payloadLen={_payloadLen} secure={IsSecureFrame}");
 
                 var frame = new BinaryFrame(
                     PayloadLength: new UInt16HbLb((ushort)_payloadLen),
@@ -199,18 +242,20 @@ public sealed class BinaryFrameDecoder : IBinaryFrameDecoder
 
     private UInt16HbLb ComputeCrc_LenThroughPayload()
     {
-        // Firmware computes CRC over: LEN(2) + TYPE(2) + FLAGS(1) + SEQ(4) + PAYLOAD(N)
-        // i.e. everything after SOF up through end of payload (exclude CRC and EOF).
-        int totalLen = HeaderSize + _payloadLen; // HeaderSize already includes LEN
+        // CRC covers:
+        // LEN(2) + TYPE(2) + FLAGS(1) + SEQ(4) + PAYLOAD(N)
+        // Excludes SOF, CRC, EOF.
+        int totalLen = HeaderSize + _payloadLen;
 
         byte[] rented = ArrayPool<byte>.Shared.Rent(totalLen);
         try
         {
-            // _header layout is exactly: LEN(2) TYPE(2) FLAGS(1) SEQ(4)
             Buffer.BlockCopy(_header, 0, rented, 0, HeaderSize);
 
             if (_payloadLen > 0 && _payload is not null)
+            {
                 Buffer.BlockCopy(_payload, 0, rented, HeaderSize, _payloadLen);
+            }
 
             return _crc.ComputeCcitt16(rented.AsSpan(0, totalLen));
         }
