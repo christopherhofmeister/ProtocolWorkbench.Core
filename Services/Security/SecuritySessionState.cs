@@ -141,10 +141,10 @@ namespace ProtocolWorkbench.Core.Services.Security
             // Restore derived session material (optional)
             TranscriptHash = EnsureLen(FromB64(state.TranscriptHashB64), 32);
 
-            KeySpToShp = EnsureLen(FromB64(state.KeySpToShpB64), 32);
-            KeyShpToSp = EnsureLen(FromB64(state.KeyShpToSpB64), 32);
-            NonceBaseSpToShp = EnsureLen(FromB64(state.NonceBaseSpToShpB64), 12);
-            NonceBaseShpToSp = EnsureLen(FromB64(state.NonceBaseShpToSpB64), 12);
+            KeySpToShp = EnsureLen(FromB64(state.KeySpToShpB64), 16);
+            KeyShpToSp = EnsureLen(FromB64(state.KeyShpToSpB64), 16);
+            NonceBaseSpToShp = EnsureLen(FromB64(state.NonceBaseSpToShpB64), 13);
+            NonceBaseShpToSp = EnsureLen(FromB64(state.NonceBaseShpToSpB64), 13);
 
             SecureTxSeq = state.SecureTxSeq;
             SecureRxSeq = state.SecureRxSeq;
@@ -214,10 +214,10 @@ namespace ProtocolWorkbench.Core.Services.Security
 
         public byte[]? TranscriptHash { get; private set; }           // 32 bytes
 
-        public byte[]? KeySpToShp { get; private set; }               // 32 bytes
-        public byte[]? KeyShpToSp { get; private set; }               // 32 bytes
-        public byte[]? NonceBaseSpToShp { get; private set; }         // 12 bytes
-        public byte[]? NonceBaseShpToSp { get; private set; }         // 12 bytes
+        public byte[]? KeySpToShp { get; private set; }               // 16 bytes
+        public byte[]? KeyShpToSp { get; private set; }               // 16 bytes
+        public byte[]? NonceBaseSpToShp { get; private set; }         // 13 bytes
+        public byte[]? NonceBaseShpToSp { get; private set; }         // 13 bytes
 
         public uint SecureTxSeq { get; private set; }                 // SP->SHP
         public uint SecureRxSeq { get; private set; }                 // SHP->SP
@@ -231,16 +231,16 @@ namespace ProtocolWorkbench.Core.Services.Security
         /// </summary>
         public async Task SaveEstablishedSessionAsync(
             byte[] transcriptHash32,
-            byte[] keySpToShp32,
-            byte[] keyShpToSp32,
-            byte[] nonceBaseSpToShp12,
-            byte[] nonceBaseShpToSp12)
+            byte[] keySpToShp16,
+            byte[] keyShpToSp16,
+            byte[] nonceBaseSpToShp13,
+            byte[] nonceBaseShpToSp13)
         {
             TranscriptHash = EnsureLenOrThrow(transcriptHash32, 32, nameof(transcriptHash32));
-            KeySpToShp = EnsureLenOrThrow(keySpToShp32, 32, nameof(keySpToShp32));
-            KeyShpToSp = EnsureLenOrThrow(keyShpToSp32, 32, nameof(keyShpToSp32));
-            NonceBaseSpToShp = EnsureLenOrThrow(nonceBaseSpToShp12, 12, nameof(nonceBaseSpToShp12));
-            NonceBaseShpToSp = EnsureLenOrThrow(nonceBaseShpToSp12, 12, nameof(nonceBaseShpToSp12));
+            KeySpToShp = EnsureLenOrThrow(keySpToShp16, 16, nameof(keySpToShp16));
+            KeyShpToSp = EnsureLenOrThrow(keyShpToSp16, 16, nameof(keyShpToSp16));
+            NonceBaseSpToShp = EnsureLenOrThrow(nonceBaseSpToShp13, 13, nameof(nonceBaseSpToShp13));
+            NonceBaseShpToSp = EnsureLenOrThrow(nonceBaseShpToSp13, 13, nameof(nonceBaseShpToSp13));
 
             SecureTxSeq = 0;
             SecureRxSeq = 0;

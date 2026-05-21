@@ -1,4 +1,5 @@
-﻿using ProtocolWorkbench.Core.Services.CrcService;
+﻿using ProtocolWorkbench.Core.Enums;
+using ProtocolWorkbench.Core.Services.CrcService;
 using ProtocolWorkBench.Core.Models;
 using System.Security.Cryptography;
 
@@ -25,26 +26,26 @@ public sealed class BinaryFrameEncoder : IBinaryFrameEncoder
         _crc = crc ?? throw new ArgumentNullException(nameof(crc));
     }
 
-    public byte[] EncodeSecureChaCha20Poly1305(BinaryFrame frame, byte[] key32, byte[] nonceBase12)
+    public byte[] EncodeSecureAes128Ccm(BinaryFrame frame, byte[] key16, byte[] nonceBase13)
     {
         const int TagSize = 16;
 
         if (frame.Payload is null)
             throw new ArgumentNullException(nameof(frame.Payload));
 
-        if (key32.Length != 32)
-            throw new ArgumentException("Key must be 32 bytes.", nameof(key32));
+        if (key16.Length != 16)
+            throw new ArgumentException("Key must be 16 bytes.", nameof(key16));
 
-        if (nonceBase12.Length != 12)
-            throw new ArgumentException("Nonce base must be 12 bytes.", nameof(nonceBase12));
+        if (nonceBase13.Length != 13)
+            throw new ArgumentException("Nonce base must be 13 bytes.", nameof(nonceBase13));
 
-        byte[] nonce = BuildNonce(nonceBase12, frame.Seq);
+        byte[] nonce = BuildNonce(nonceBase13, frame.Seq);
         byte[] aad = BuildAad(frame, frame.Payload.Length);
 
         byte[] ciphertext = new byte[frame.Payload.Length];
         byte[] tag = new byte[TagSize];
 
-        using var aead = new ChaCha20Poly1305(key32);
+        using var aead = new AesCcm(key16);
         aead.Encrypt(nonce, frame.Payload, ciphertext, tag, aad);
 
         ushort lenAfterLen = checked((ushort)(
@@ -73,10 +74,10 @@ public sealed class BinaryFrameEncoder : IBinaryFrameEncoder
     {
         byte[] nonce = (byte[])baseNonce.Clone();
 
-        nonce[8] = (byte)(seq & 0xFF);
-        nonce[9] = (byte)((seq >> 8) & 0xFF);
-        nonce[10] = (byte)((seq >> 16) & 0xFF);
-        nonce[11] = (byte)((seq >> 24) & 0xFF);
+        nonce[9] = (byte)(seq & 0xFF);
+        nonce[10] = (byte)((seq >> 8) & 0xFF);
+        nonce[11] = (byte)((seq >> 16) & 0xFF);
+        nonce[12] = (byte)((seq >> 24) & 0xFF);
 
         return nonce;
     }
@@ -163,6 +164,143 @@ public sealed class BinaryFrameEncoder : IBinaryFrameEncoder
         buffer[o++] = EOF;
 
         return buffer;
+    }
+
+    public List<Byte> ParameterToBytesLSBFirst(MessageParameter param)
+    {
+        List<Byte> formattedPayload = new List<byte>();
+
+        if (param.CType == CTypes.BOOL)
+        {
+            if (param.Value.ToLower() == "true")
+            {
+                formattedPayload.Add(0x01);
+            }
+            else
+            {
+                formattedPayload.Add(0x00);
+            }
+
+        }
+        else if (param.CType == CTypes.BASE64)
+        {
+            if (string.IsNullOrWhiteSpace(param.Value))
+                return formattedPayload;
+
+            var bytes = Convert.FromBase64String(param.Value.Trim());
+            formattedPayload.AddRange(bytes);
+
+            // DO NOT reverse — blobs are not little-endian numbers
+        }
+        else if (param.CType == CTypes.UINT8)
+        {
+            formattedPayload.Add(Convert.ToByte(param.Value));
+        }
+        else if (param.CType == CTypes.UINT16)
+        {
+            UInt16 u16 = Convert.ToUInt16(param.Value);
+            formattedPayload.Add((byte)u16);
+            formattedPayload.Add((byte)(u16 >> 8));
+        }
+        else if (param.CType == CTypes.UINT32)
+        {
+            UInt32 u32 = Convert.ToUInt32(param.Value);
+            formattedPayload.Add((byte)u32);
+            formattedPayload.Add((byte)(u32 >> 8));
+            formattedPayload.Add((byte)(u32 >> 16));
+            formattedPayload.Add((byte)(u32 >> 24));
+        }
+        else if (param.CType == CTypes.UINT64)
+        {
+            UInt64 u64 = Convert.ToUInt64(param.Value);
+            formattedPayload.Add((byte)u64);
+            formattedPayload.Add((byte)(u64 >> 8));
+            formattedPayload.Add((byte)(u64 >> 16));
+            formattedPayload.Add((byte)(u64 >> 24));
+            formattedPayload.Add((byte)(u64 >> 32));
+            formattedPayload.Add((byte)(u64 >> 40));
+            formattedPayload.Add((byte)(u64 >> 48));
+            formattedPayload.Add((byte)(u64 >> 56));
+        }
+        else if (param.CType == CTypes.INT8)
+        {
+            formattedPayload.Add(Convert.ToByte(param.Value));
+        }
+        else if (param.CType == CTypes.INT16)
+        {
+            Int16 i16 = Convert.ToInt16(param.Value);
+            formattedPayload.Add((byte)i16);
+            formattedPayload.Add((byte)(i16 >> 8));
+        }
+        else if (param.CType == CTypes.INT32)
+        {
+            Int32 i32 = Convert.ToInt32(param.Value);
+            formattedPayload.Add((byte)i32);
+            formattedPayload.Add((byte)(i32 >> 8));
+            formattedPayload.Add((byte)(i32 >> 16));
+            formattedPayload.Add((byte)(i32 >> 24));
+        }
+        else if (param.CType == CTypes.INT64)
+        {
+            Int64 i64 = Convert.ToInt64(param.Value);
+            formattedPayload.Add((byte)i64);
+            formattedPayload.Add((byte)(i64 >> 8));
+            formattedPayload.Add((byte)(i64 >> 16));
+            formattedPayload.Add((byte)(i64 >> 24));
+            formattedPayload.Add((byte)(i64 >> 32));
+            formattedPayload.Add((byte)(i64 >> 40));
+            formattedPayload.Add((byte)(i64 >> 48));
+            formattedPayload.Add((byte)(i64 >> 56));
+        }
+        else if (param.CType == CTypes.STRING)
+        {
+            if (string.IsNullOrEmpty(param.Value))
+                return formattedPayload;
+
+            formattedPayload.AddRange(System.Text.Encoding.UTF8.GetBytes(param.Value));
+        }
+        else if (param.CType == CTypes.BYTE_ARRAY)
+        {
+            string[] strArray = null;
+            if (param.Value.Contains(','))
+            {
+                strArray = param.Value.Split(',');
+            }
+            else if (param.Value.Contains(' '))
+            {
+                strArray = param.Value.Split(' ');
+            }
+            else
+            {
+                byte b = 0;
+                b = Convert.ToByte(param.Value);
+                formattedPayload.Add(b);
+            }
+            if (null != strArray)
+            {
+                foreach (string s in strArray)
+                {
+                    byte b = 0;
+                    string strTrim = s.Trim();
+                    if ((strTrim.StartsWith("0x") || (strTrim.StartsWith("Ox"))))
+                    {
+                        /* convert hex string to byte */
+                        string num = strTrim.Substring(2, strTrim.Length - 2);
+                        int intNum = Int32.Parse(num, System.Globalization.NumberStyles.HexNumber);
+                        b = (byte)intNum;
+                    }
+                    else
+                    {
+                        b = Convert.ToByte(s);
+                    }
+                    formattedPayload.Add(b);
+                }
+                /* send lsb first */
+                formattedPayload.Reverse();
+            }
+        }
+
+        return formattedPayload;
     }
 
     private static void WriteU16LE(Span<byte> buf, int offset, ushort value)

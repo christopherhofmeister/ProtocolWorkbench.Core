@@ -202,10 +202,10 @@ namespace ProtocolWorkbench.Core.Services.Security
         }
 
         private readonly record struct SessionMaterial(
-            byte[] KeySpToShp32,
-            byte[] KeyShpToSp32,
-            byte[] NonceBaseSpToShp12,
-            byte[] NonceBaseShpToSp12);
+            byte[] KeySpToShp16,
+            byte[] KeyShpToSp16,
+            byte[] NonceBaseSpToShp13,
+            byte[] NonceBaseShpToSp13);
 
         private static SessionMaterial DeriveSessionMaterial(
             byte[] sharedSecret,
@@ -214,16 +214,16 @@ namespace ProtocolWorkbench.Core.Services.Security
             var prk = HkdfExtract(transcriptHash, sharedSecret);
 
             byte[] keySpToShp =
-                HkdfExpand(prk, Encoding.ASCII.GetBytes("SP->SHP key"), 32);
+                HkdfExpand(prk, Encoding.ASCII.GetBytes("SP->SHP key"), 16);
 
             byte[] keyShpToSp =
-                HkdfExpand(prk, Encoding.ASCII.GetBytes("SHP->SP key"), 32);
+                HkdfExpand(prk, Encoding.ASCII.GetBytes("SHP->SP key"), 16);
 
             byte[] nonceSpToShp =
-                HkdfExpand(prk, Encoding.ASCII.GetBytes("SP->SHP nonce"), 12);
+                HkdfExpand(prk, Encoding.ASCII.GetBytes("SP->SHP nonce"), 13);
 
             byte[] nonceShpToSp =
-                HkdfExpand(prk, Encoding.ASCII.GetBytes("SHP->SP nonce"), 12);
+                HkdfExpand(prk, Encoding.ASCII.GetBytes("SHP->SP nonce"), 13);
 
             return new SessionMaterial(
                 keySpToShp,
@@ -302,10 +302,10 @@ namespace ProtocolWorkbench.Core.Services.Security
 
                 await _state.SaveEstablishedSessionAsync(
                     transcriptHash32: transcriptHash,
-                    keySpToShp32: derived.KeySpToShp32,
-                    keyShpToSp32: derived.KeyShpToSp32,
-                    nonceBaseSpToShp12: derived.NonceBaseSpToShp12,
-                    nonceBaseShpToSp12: derived.NonceBaseShpToSp12);
+                    keySpToShp16: derived.KeySpToShp16,
+                    keyShpToSp16: derived.KeyShpToSp16,
+                    nonceBaseSpToShp13: derived.NonceBaseSpToShp13,
+                    nonceBaseShpToSp13: derived.NonceBaseShpToSp13);
 
                 RemovePending(seq);
 
@@ -408,10 +408,10 @@ namespace ProtocolWorkbench.Core.Services.Security
             Debug.WriteLine($"[EST] Pending recorded for seq={seq} (pinned SP private key).");
         }
 
-        public bool TryDecryptSecureFrame_ChaCha20Poly1305(
+        public bool TryDecryptSecureFrame_Aes128Ccm(
             byte[] wire,
-            byte[] key32,
-            byte[] nonceBase12,
+            byte[] key16,
+            byte[] nonceBase13,
             out ushort typeValue,
             out byte flags,
             out uint seq,
@@ -471,17 +471,17 @@ namespace ProtocolWorkbench.Core.Services.Security
             aad[a++] = (byte)((seq >> 16) & 0xFF);
             aad[a++] = (byte)((seq >> 24) & 0xFF);
 
-            // nonce = base(12) with last 4 bytes overwritten by SEQ (little-endian)
-            byte[] nonce = (byte[])nonceBase12.Clone();
-            nonce[8] = (byte)(seq & 0xFF);
-            nonce[9] = (byte)((seq >> 8) & 0xFF);
-            nonce[10] = (byte)((seq >> 16) & 0xFF);
-            nonce[11] = (byte)((seq >> 24) & 0xFF);
+            // nonce = base(13) with last 4 bytes overwritten by SEQ (little-endian)
+            byte[] nonce = (byte[])nonceBase13.Clone();
+            nonce[9] = (byte)(seq & 0xFF);
+            nonce[10] = (byte)((seq >> 8) & 0xFF);
+            nonce[11] = (byte)((seq >> 16) & 0xFF);
+            nonce[12] = (byte)((seq >> 24) & 0xFF);
 
             byte[] pt = new byte[cipherLen];
             try
             {
-                using var aead = new ChaCha20Poly1305(key32);
+                using var aead = new AesCcm(key16);
                 aead.Decrypt(nonce, ciphertext, tag, pt, aad);
                 plaintextPayload = pt;
                 return true;
