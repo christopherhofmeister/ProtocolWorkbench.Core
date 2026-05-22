@@ -1,20 +1,12 @@
 ﻿using FTD2XX_NET;
-using ProtocolWorkBench.Core;
 using ProtocolWorkBench.Core.Models;
-using ProtocolWorkBench.Core.Protocols.SMPCONSOLE;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using static ProtocolWorkBench.Core.Models.ProtocolDefinitions;
 using static ProtocolWorkBench.Core.Models.UartFlowControl;
-using static ProtocolWorkBench.Core.Protocols.SMPCONSOLE.SMPoCMessageService;
 
 namespace ProtocolWorkbench.Core.Services.UartDevice
 {
     public interface IUartDevice
     {
-        ReceivedMessageService ReceivedMessageService { get; }
-        SMPoCMessageService SMPoCMessageService { get; set; }
         string UserAttribute1 { get; set; }
         string UserAttribute2 { get; set; }
         bool DebugModeTx { get; set; }

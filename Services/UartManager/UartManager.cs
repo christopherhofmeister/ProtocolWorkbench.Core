@@ -2,10 +2,7 @@
 using ProtocolWorkbench.Core.Services.UartDevice;
 using ProtocolWorkBench.Core;
 using ProtocolWorkBench.Core.Models;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 
 namespace ProtocolWorkbench.Core.Services.UartManager
 {
@@ -178,12 +175,12 @@ namespace ProtocolWorkbench.Core.Services.UartManager
                             ftStatus = lib1.GetCOMPort(out comPort);
                             if (ftStatus == FTDI.FT_STATUS.FT_OK)
                             {
-                                ftStatus= lib1.GetSerialNumber(out serialNumber);
+                                ftStatus = lib1.GetSerialNumber(out serialNumber);
                                 if (ftStatus == FTDI.FT_STATUS.FT_OK)
                                 {
                                     lib1.GetDeviceType(ref deviceType);
                                 }
-                                comPorts.Add(new FtdiDevice {ComPort = comPort, SerialNumber = serialNumber, FtdiDeviceType = deviceType });
+                                comPorts.Add(new FtdiDevice { ComPort = comPort, SerialNumber = serialNumber, FtdiDeviceType = deviceType });
                             }
                             lib1.Close();
                         }

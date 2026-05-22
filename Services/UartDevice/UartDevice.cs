@@ -1,9 +1,6 @@
 ﻿using FTD2XX_NET;
 using ProtocolWorkBench.Core;
 using ProtocolWorkBench.Core.Models;
-using ProtocolWorkBench.Core.Protocols;
-using ProtocolWorkBench.Core.Protocols.CBOR;
-using ProtocolWorkBench.Core.Protocols.SMPCONSOLE;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Ports;
@@ -28,8 +25,6 @@ namespace ProtocolWorkbench.Core.Services.UartDevice
         private ProtocolTypes Protocol;
         public event EventHandler RxMsgQueuedEvent;
         private event EventHandler TxMsgQueuedEvent;
-        public ProcessJsonMessage processJsonMessage;
-        public ProcessSmpMessage processSmpMessage;
 
         public string UserAttribute1 { get; set; }
         public string UserAttribute2 { get; set; }
@@ -37,9 +32,6 @@ namespace ProtocolWorkbench.Core.Services.UartDevice
         public FTDI.FT_DEVICE FtdiDeviceType { get; set; }
 
         FlowControlTypes FlowControl { get; set; }
-
-        public ReceivedMessageService ReceivedMessageService { get; private set; }
-        public SMPoCMessageService SMPoCMessageService { get; set; }
 
         public bool DebugModeTx { get; set; }
         public bool DebugModeRx { get; set; }
@@ -56,7 +48,6 @@ namespace ProtocolWorkbench.Core.Services.UartDevice
 
         public void SerialPortInit()
         {
-            ReceivedMessageService = new ReceivedMessageService();
             rxMessageQueue = new ConcurrentQueue<MessageBase>();
             txMessageQueue = new ConcurrentQueue<MessageBase>();
             SimulateUartRxData = new List<byte>();
@@ -92,7 +83,6 @@ namespace ProtocolWorkbench.Core.Services.UartDevice
         public void EnableProcessingOnComPort(string comPort, int baudRate, ProtocolTypes protocol, FlowControlTypes flowControl)
         {
             DebugModeRx = true;
-            ReceivedMessageService.SetReceivedMessageServiceComPort(comPort);
             Protocol = protocol;
             if (!SimulateUartRx)
             {
@@ -306,15 +296,6 @@ namespace ProtocolWorkbench.Core.Services.UartDevice
                 case ProtocolTypes.JSON:
                     break;
                 case ProtocolTypes.SMP:
-                    break;
-                case ProtocolTypes.BINARYB:
-                    break;
-                case ProtocolTypes.SMPCONSOLE:
-                    SMPoCMessageService = new SMPoCMessageService(this);
-                    SMPoCMessageService.EnableProcessing();
-                    // set debug
-                    SMPoCMessageService.OutputDebug = DebugModeMsgProcess;
-                    CBORService.OutputDebug = DebugModeMsgProcess;
                     break;
                 default:
                     throw new Exception("Error!  Unknown Serial Protocol.");
