@@ -3,13 +3,11 @@
     public enum RpcStatus : byte
     {
         Ok = 0,
-        // Fill these with your real meanings if you already have them:
-        InvalidArg = 1,
-        NotFound = 2,
-        NotAllowed = 3,
-        Busy = 4,
-        Timeout = 5,
+        NotFound = 1,
+        NotReadable = 2,
+        NotWritable = 3,
+        InvalidArg = 4,
+        BufferTooSmall = 5,
         InternalError = 6,
-        Unknown = 7,
     }
 }

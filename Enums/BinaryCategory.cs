@@ -8,6 +8,7 @@
         Radio802154Test = 0x3,
         Security = 0x4,
         ManufacturingTec = 0x5,
+        Sensor = 0x06,
 
         Reserved6 = 0x6,
         Reserved7 = 0x7,

@@ -1,4 +1,4 @@
-﻿using ProtocolWorkbench.Core.Enums;
+using ProtocolWorkbench.Core.Enums;
 using ProtocolWorkbench.Core.Models.ApiResponses;
 using ProtocolWorkbench.Core.Protocols.Binary.Models;
 using System.Buffers.Binary;
@@ -67,6 +67,30 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
         }
 
         public static string? DeviceId { get; set; }
+
+        public static byte[]? ServerWifiCsr { get; set; }
+
+        public static string? ServerWifiDeviceId { get; set; }
+
+        public static string? ServerWifiCertificatePem { get; set; }
+
+        public static string ServerWifiCsrAsBase64()
+        {
+            if (ServerWifiCsr == null || ServerWifiCsr.Length == 0)
+                return string.Empty;
+
+            return Convert.ToBase64String(ServerWifiCsr);
+        }
+
+        public static string? ServerWifiCertificatePemAsBase64()
+        {
+            if (string.IsNullOrWhiteSpace(ServerWifiCertificatePem))
+                return string.Empty;
+
+            using var cert = X509CertificateLoader.LoadCertificate(Encoding.UTF8.GetBytes(ServerWifiCertificatePem));
+            byte[] rawDerBytes = cert.RawData;
+            return Convert.ToBase64String(rawDerBytes);
+        }
 
         public static GetProvisionStatusResponse DecodeGetProvisionStatus(ReadOnlySpan<byte> payload)
         {
@@ -230,6 +254,49 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
         }
 
         public static GetCertificateInfoResponse DecodeGetCommissioningCertificateInfo(ReadOnlySpan<byte> payload)
+        {
+            return DecodeGetCertificateInfo(payload);
+        }
+
+        public static GetProvisionStatusResponse DecodeGetServerWifiStatus(ReadOnlySpan<byte> payload)
+        {
+            return DecodeGetProvisionStatus(payload);
+        }
+
+        public static GenerateCsrResponse DecodeGenerateServerWifiCsr(ReadOnlySpan<byte> payload)
+        {
+            if (payload.Length < 35)
+                throw new InvalidOperationException($"GenerateServerWifiCSR payload too short: {payload.Length}");
+
+            int o = 0;
+
+            var status = (RpcStatus)payload[o++];
+
+            if (status != RpcStatus.Ok)
+                return new GenerateCsrResponse(status, null, 0, null);
+
+            string deviceId = Encoding.UTF8.GetString(payload.Slice(o, 32));
+            o += 32;
+
+            ServerWifiDeviceId = deviceId;
+
+            ushort csrLen = BinaryPrimitives.ReadUInt16LittleEndian(payload.Slice(o, 2));
+            o += 2;
+
+            if (payload.Length < o + csrLen)
+                throw new InvalidOperationException("Server WiFi CSR length exceeds payload.");
+
+            ServerWifiCsr = payload.Slice(o, csrLen).ToArray();
+
+            return new GenerateCsrResponse(status, deviceId, csrLen, ServerWifiCsr);
+        }
+
+        public static InstallCertificateResponse DecodeInstallServerWifiCertificate(ReadOnlySpan<byte> payload)
+        {
+            return DecodeInstallCertificate(payload);
+        }
+
+        public static GetCertificateInfoResponse DecodeGetServerWifiCertificateInfo(ReadOnlySpan<byte> payload)
         {
             return DecodeGetCertificateInfo(payload);
         }
