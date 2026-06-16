@@ -74,6 +74,14 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
 
         public static string? ServerWifiCertificatePem { get; set; }
 
+        /// <summary>
+        /// The CA certificate chain PEM for server-WiFi mTLS trust, fetched from the
+        /// provisioning server via GetGenerationsAsync(CertificateChainName.ShpServerWifi).
+        /// Contains only trust-anchor certs (intermediates + root), NOT the device leaf.
+        /// Populated by MethodRunnerViewModel after the server-WiFi CSR is signed.
+        /// </summary>
+        public static string? ServerWifiCertificateChainPem { get; set; }
+
         public static string ServerWifiCsrAsBase64()
         {
             if (ServerWifiCsr == null || ServerWifiCsr.Length == 0)
@@ -90,6 +98,129 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
             using var cert = X509CertificateLoader.LoadCertificate(Encoding.UTF8.GetBytes(ServerWifiCertificatePem));
             byte[] rawDerBytes = cert.RawData;
             return Convert.ToBase64String(rawDerBytes);
+        }
+
+        /// <summary>
+        /// Returns the base64-encoded concatenated DER bytes of the server-WiFi CA chain.
+        /// Prefers <see cref="ServerWifiCertificateChainPem"/> (the CA-chain-only PEM fetched
+        /// from the provisioning server via GetGenerationsAsync), which includes ALL certs.
+        /// Falls back to extracting the chain from <see cref="ServerWifiCertificatePem"/>
+        /// (the signing response PEM) by skipping the leaf cert (index 0).
+        /// Returns <c>null</c> if neither source provides chain data.
+        /// </summary>
+        public static string? ServerWifiCertificateChainAsBase64()
+        {
+            // Prefer the CA chain fetched from the provisioning server.
+            // This PEM contains only trust-anchor certs (no device leaf), so include ALL.
+            if (!string.IsNullOrWhiteSpace(ServerWifiCertificateChainPem))
+            {
+                byte[]? fetchedChain = ExtractAllCertsDerBytes(ServerWifiCertificateChainPem);
+                return (fetchedChain is { Length: > 0 }) ? Convert.ToBase64String(fetchedChain) : null;
+            }
+
+            // Fallback: signing API may return leaf + chain in one PEM; skip the leaf.
+            if (string.IsNullOrWhiteSpace(ServerWifiCertificatePem))
+                return null;
+
+            byte[]? chainBytes = ExtractChainDerBytes(ServerWifiCertificatePem);
+            return (chainBytes is { Length: > 0 }) ? Convert.ToBase64String(chainBytes) : null;
+        }
+
+        /// <summary>
+        /// Parses a PEM string that may contain multiple -----BEGIN CERTIFICATE----- blocks.
+        /// Skips the first (leaf) cert and returns the concatenated DER bytes of all remaining
+        /// certs (intermediate + root CAs), or <c>null</c> if no chain certs are present.
+        /// </summary>
+        private static byte[]? ExtractChainDerBytes(string pemString)
+        {
+            const string beginMarker = "-----BEGIN CERTIFICATE-----";
+            const string endMarker = "-----END CERTIFICATE-----";
+
+            var chainDerBlobs = new List<byte[]>();
+            int searchPos = 0;
+            int certIndex = 0;
+
+            while (true)
+            {
+                int beginIdx = pemString.IndexOf(beginMarker, searchPos, StringComparison.Ordinal);
+                if (beginIdx < 0) break;
+
+                int endIdx = pemString.IndexOf(endMarker, beginIdx, StringComparison.Ordinal);
+                if (endIdx < 0) break;
+
+                int contentStart = beginIdx + beginMarker.Length;
+                string b64 = pemString
+                    .Substring(contentStart, endIdx - contentStart)
+                    .Replace("\r", string.Empty)
+                    .Replace("\n", string.Empty)
+                    .Trim();
+
+                // Skip index 0 — that is the leaf cert, already sent as deviceCertB64.
+                if (certIndex > 0 && b64.Length > 0)
+                    chainDerBlobs.Add(Convert.FromBase64String(b64));
+
+                certIndex++;
+                searchPos = endIdx + endMarker.Length;
+            }
+
+            if (chainDerBlobs.Count == 0) return null;
+
+            int totalLen = chainDerBlobs.Sum(b => b.Length);
+            byte[] concat = new byte[totalLen];
+            int offset = 0;
+            foreach (byte[] blob in chainDerBlobs)
+            {
+                Buffer.BlockCopy(blob, 0, concat, offset, blob.Length);
+                offset += blob.Length;
+            }
+            return concat;
+        }
+
+        /// <summary>
+        /// Concatenates DER bytes for ALL certificate blocks in <paramref name="pemString"/>.
+        /// Use this when the PEM contains only CA/trust-anchor certs and there is no device
+        /// leaf cert to skip (contrast with <see cref="ExtractChainDerBytes"/> which skips index 0).
+        /// </summary>
+        private static byte[]? ExtractAllCertsDerBytes(string pemString)
+        {
+            const string beginMarker = "-----BEGIN CERTIFICATE-----";
+            const string endMarker = "-----END CERTIFICATE-----";
+
+            var derBlobs = new List<byte[]>();
+            int searchPos = 0;
+
+            while (true)
+            {
+                int beginIdx = pemString.IndexOf(beginMarker, searchPos, StringComparison.Ordinal);
+                if (beginIdx < 0) break;
+
+                int endIdx = pemString.IndexOf(endMarker, beginIdx, StringComparison.Ordinal);
+                if (endIdx < 0) break;
+
+                int contentStart = beginIdx + beginMarker.Length;
+                string b64 = pemString
+                    .Substring(contentStart, endIdx - contentStart)
+                    .Replace("\r", string.Empty)
+                    .Replace("\n", string.Empty)
+                    .Trim();
+
+                if (b64.Length > 0)
+                    derBlobs.Add(Convert.FromBase64String(b64));
+
+                searchPos = endIdx + endMarker.Length;
+            }
+
+            if (derBlobs.Count == 0) return null;
+
+            int totalLen = derBlobs.Sum(b => b.Length);
+            byte[] concat = new byte[totalLen];
+            int offset = 0;
+            foreach (byte[] blob in derBlobs)
+            {
+                Buffer.BlockCopy(blob, 0, concat, offset, blob.Length);
+                offset += blob.Length;
+            }
+            return concat;
         }
 
         public static GetProvisionStatusResponse DecodeGetProvisionStatus(ReadOnlySpan<byte> payload)
@@ -300,6 +431,19 @@ namespace ProtocolWorkbench.Core.Protocols.Binary.Helpers
         {
             return DecodeGetCertificateInfo(payload);
         }
+
+        /// <summary>
+        /// Decodes the Install Trust Chain response (same wire layout as Install Certificate: status byte only).
+        /// </summary>
+        public static InstallCertificateResponse DecodeInstallTrustChain(ReadOnlySpan<byte> payload)
+            => DecodeInstallCertificate(payload);
+
+        /// <summary>
+        /// Decodes the Get Trust Chain Info response (same wire layout as Get Certificate Info:
+        /// status + trustChainLen (uint16) + trustChainDer bytes).
+        /// </summary>
+        public static GetCertificateInfoResponse DecodeGetTrustChainInfo(ReadOnlySpan<byte> payload)
+            => DecodeGetCertificateInfo(payload);
 
         public static InstallSetupCodeResponse DecodeInstallSetupCode(byte[] payload)
         {
